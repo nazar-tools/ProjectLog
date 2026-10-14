@@ -122,6 +122,10 @@ textarea.inp { padding: 10px 12px; line-height: 1.5; resize: vertical; min-heigh
 .seg { display: flex; gap: 3px; padding: 3px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; }
 .seg button { flex: 1 1 0; min-width: 0; min-height: 32px; padding: 0 8px; border: 0; border-radius: 9px; background: transparent; font-size: 13.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
 .seg button.on { background: var(--surface-1); color: var(--text-primary); box-shadow: var(--shadow-1), inset 0 0 0 1.5px var(--accent); }
+.groupseg { flex: 0 1 380px; }
+.groupseg button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; }
+.groupseg button .ic { color: var(--muted); }
+.groupseg button.on .ic { color: var(--accent); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-1); font-size: 13.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
 .chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-strong); }
@@ -167,6 +171,20 @@ textarea.inp { padding: 10px 12px; line-height: 1.5; resize: vertical; min-heigh
 .addline input:focus { background: var(--surface-2); }
 .addline .lvl { font-size: 11px; color: var(--muted); font-weight: 700; min-width: 0; }
 .psum { border-top: 1px solid var(--gridline); padding: 8px 14px 10px 42px; }
+.grip { width: 18px; height: 20px; margin-left: -20px; display: grid; place-items: center; color: var(--muted); cursor: grab; flex: none; opacity: 0; border-radius: 5px; }
+.grip .ic { width: 14px; height: 14px; stroke-width: 3; }
+.item:hover .grip, .item:focus-within .grip { opacity: 1; }
+.grip:hover { background: var(--surface-2); color: var(--text-primary); }
+.grip:active { cursor: grabbing; }
+.item.dragging { opacity: .35; }
+.item.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.item.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.donebtn { color: var(--muted); }
+.donebtn:hover { color: var(--good); border-color: var(--good); }
+.donebtn.is-on { background: var(--good); border-color: var(--good); color: #fff; }
+.pcard.is-done { background: var(--surface-2); box-shadow: none; opacity: .62; filter: saturate(.25); transition: opacity .15s, filter .15s; }
+.pcard.is-done:hover, .pcard.is-done:focus-within { opacity: 1; filter: none; }
+.donesec .ghead h2 { color: var(--muted); }
 .timerbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius-lg); background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent-strong); }
 .timerbar .t { font-size: 24px; font-weight: 800; letter-spacing: -.02em; }
 .scratch textarea { width: 100%; min-height: 120px; resize: vertical; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); padding: 10px 12px; font-size: 14px; line-height: 1.45; }
@@ -186,6 +204,7 @@ textarea.inp { padding: 10px 12px; line-height: 1.5; resize: vertical; min-heigh
 .results { margin-top: 6px; }
 .res { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 16px; }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 12px; background: var(--text-primary); color: var(--page); z-index: 50; box-shadow: var(--shadow-2); max-width: calc(100vw - 24px); }
+.toast span { flex: 1 1 auto; min-width: 0; }
 .toast button { min-height: 32px; padding: 0 12px; border-radius: 8px; border: 0; background: transparent; color: var(--accent-track); font-weight: 800; cursor: pointer; }
 
 /* ---------- Projects ---------- */
@@ -261,6 +280,9 @@ table.ts tfoot td.today { background: var(--accent-soft); }
   .psum { padding-left: 36px; }
   .chip { min-height: 30px; padding: 0 10px; font-size: 13px; border-radius: 10px; }
   .seg button { min-height: 30px; font-size: 13px; }
+  .toolbar { gap: 8px; }
+  .groupseg { flex: 1 1 100%; padding: 4px; border-radius: 14px; }
+  .groupseg button { min-height: 38px; border-radius: 10px; font-size: 13.5px; gap: 6px; }
   .tag { font-size: 10.5px; padding: 3px 7px; }
   .pm { font-size: 12px; }
   .ghead { margin-bottom: 8px; }
@@ -280,7 +302,7 @@ table.ts tfoot td.today { background: var(--accent-soft); }
   .rvt { width: 80px; }
   .jrow { flex-direction: column; gap: 3px; padding: 9px 12px; }
   .jrow .d { flex: none; }
-  .toast { bottom: 76px; }
+  .toast { bottom: 76px; left: 10px; right: 10px; transform: none; max-width: none; }
 }
 @media (min-width: 640px) {
   .only-narrow { display: none !important; }

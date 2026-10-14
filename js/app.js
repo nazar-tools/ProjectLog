@@ -87,6 +87,9 @@
     play: '<polygon points="7 4 20 12 7 20 7 4"/>', stop: '<rect x="6" y="6" width="12" height="12" rx="1"/>',
     plus: '<path d="M5 12h14"/><path d="M12 5v14"/>', check: '<path d="M20 6 9 17l-5-5"/>',
     search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    grip: '<circle cx="9" cy="6" r=".6"/><circle cx="9" cy="12" r=".6"/><circle cx="9" cy="18" r=".6"/><circle cx="15" cy="6" r=".6"/><circle cx="15" cy="12" r=".6"/><circle cx="15" cy="18" r=".6"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    hash: '<path d="M4 9h16"/><path d="M4 15h16"/><path d="m10 3-2 18"/><path d="m16 3-2 18"/>',
     chevR: '<path d="m9 18 6-6-6-6"/>', chevL: '<path d="m15 18-6-6 6-6"/>', chevD: '<path d="m6 9 6 6 6-6"/>',
     back: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
     flag: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>',
@@ -138,19 +141,20 @@
     var hidden = all.length - items.length;
     var h = '<div class="items">';
     items.forEach(function (it) {
-      var pad = 14 + it.level * 22;
-      h += '<div class="item' + (it.done ? ' done' : '') + '" style="padding-left:' + pad + 'px">';
+      var pad = 24 + it.level * 22;
+      h += '<div class="item' + (it.done ? ' done' : '') + '" data-item="' + it.id + '" style="padding-left:' + pad + 'px">' +
+        '<span class="grip" draggable="true" data-drag="' + it.id + '" title="Drag to reorder (or Alt + ↑/↓)">' + ic('grip', 'xs') + '</span>';
       if (it.kind === 'task') h += '<input type="checkbox" class="chk" data-a="toggleItem" data-id="' + it.id + '"' + (it.done ? ' checked' : '') + ' aria-label="Done: ' + esc(it.text) + '">';
       else h += '<span class="notemark" aria-hidden="true">–</span>';
       if (ui.editItem === it.id) h += '<input class="edit" id="edit-' + it.id + '" data-k="editItem" data-id="' + it.id + '" value="' + esc(it.text) + '" aria-label="Edit item">';
-      else h += '<span class="txt" data-a="editItem" data-id="' + it.id + '" tabindex="0" role="button" aria-label="Edit: ' + esc(it.text) + '">' + esc(it.text) + '</span>';
+      else h += '<span class="txt" id="txt-' + it.id + '" data-a="editItem" data-id="' + it.id + '" tabindex="0" role="button" aria-label="Edit: ' + esc(it.text) + '">' + esc(it.text) + '</span>';
       h += '<span class="acts"><button data-a="outdent" data-id="' + it.id + '" title="Outdent" aria-label="Outdent">' + ic('outdent', 'xs') + '</button>' +
         '<button data-a="indent" data-id="' + it.id + '" title="Indent" aria-label="Indent">' + ic('indent', 'xs') + '</button>' +
         '<button data-a="kind" data-id="' + it.id + '" title="' + (it.kind === 'task' ? 'Make it a note' : 'Make it a task') + '" aria-label="Switch task or note">' + ic('list', 'xs') + '</button>' +
         '<button data-a="delItem" data-id="' + it.id + '" title="Delete" aria-label="Delete">' + ic('x', 'xs') + '</button></span></div>';
     });
     var lvl = ui.addLevel[pid] || 0;
-    h += '<div class="addline" style="padding-left:' + (8 + lvl * 22) + 'px"><input id="add-' + pid + '" data-k="add" data-id="' + pid + '" placeholder="' + (opts.placeholder || 'Add task…  – for a note · Tab indents') + '" aria-label="Add a task or note">' +
+    h += '<div class="addline" style="padding-left:' + (18 + lvl * 22) + 'px"><input id="add-' + pid + '" data-k="add" data-id="' + pid + '" placeholder="' + (opts.placeholder || 'Add task…  – for a note · Tab indents') + '" aria-label="Add a task or note">' +
       (lvl ? '<span class="lvl">level ' + lvl + '</span>' : '') + '</div>';
     if (hidden > 0) h += '<div style="padding:0 14px 8px"><button class="btn ghost sm" data-a="showDone" data-id="' + pid + '">Show ' + hidden + ' finished</button></div>';
     else if (showAll && all.some(function (i) { return i.done && i.doneAt < wk; })) h += '<div style="padding:0 14px 8px"><button class="btn ghost sm" data-a="showDone" data-id="' + pid + '">Hide older finished</button></div>';
@@ -178,7 +182,10 @@
     var entries = W.entries.filter(function (e) { return proj(e.pid); });
     var present = state.people.filter(function (p) { return entries.some(function (e) { return proj(e.pid).pm === p.id; }); });
     if (set.pm !== 'all' && !present.some(function (p) { return p.id === set.pm; })) set.pm = 'all';
+    if (set.group !== 'pm') set.pm = 'all';
     var vis = entries.filter(function (e) { return set.pm === 'all' || proj(e.pid).pm === set.pm; });
+    var doneList = vis.filter(function (e) { return e.done; }).sort(function (a, b) { return parseFloat(proj(b.pid).number) - parseFloat(proj(a.pid).number); });
+    vis = vis.filter(function (e) { return !e.done; });
     var groups = [];
     if (set.group === 'num') {
       groups = [{ title: 'All projects', sub: 'Number, high to low', list: vis.slice().sort(function (a, b) { return parseFloat(proj(b.pid).number) - parseFloat(proj(a.pid).number); }) }];
@@ -198,20 +205,20 @@
     var planned = entries.reduce(function (a, e) { return a + (parseFloat(e.hours) || 0); }, 0);
     var logged = entries.reduce(function (a, e) { return a + S.minutesFor(state, e.pid, R.startIso, R.endIso) + liveMinutes(e.pid); }, 0) / 60;
 
-    var h = '<div class="stickyhead"><div class="pagehead"><div class="grow"><h1 class="h1">This week</h1><div class="sub">' + fmtRange(wk) + ' · ' + WD[new Date().getDay()] + ' · ' + vis.length + ' of ' + entries.length + ' projects</div></div>' +
+    var h = '<div class="stickyhead"><div class="pagehead"><div class="grow"><h1 class="h1">This week</h1><div class="sub">' + fmtRange(wk) + ' · ' + WD[new Date().getDay()] + ' · ' + vis.length + ' to do' + (doneList.length ? ' · ' + doneList.length + ' done' : '') + '</div></div>' +
       '<div class="row"><a class="iconbtn only-narrow" href="#/settings" aria-label="Settings">' + ic('sliders', 's') + '</a>' +
       '<button class="iconbtn" data-a="compact" aria-label="' + (set.compact ? 'Expand all' : 'Collapse all') + '" title="' + (set.compact ? 'Expand all' : 'Collapse all') + '">' + ic('list', 's') + '</button>' +
       '<a class="btn pri hide-narrow" href="#/plan">' + ic('plus', 's') + 'Add / remove projects</a><a class="iconbtn pri only-narrow" href="#/plan" aria-label="Add or remove projects">' + ic('plus', 's') + '</a></div></div>';
     h += timerBar();
     if (entries.length) {
-      h += '<div class="toolbar"><div class="seg" style="flex:0 1 340px">' + [['deadline', 'Deadline'], ['pm', 'PM'], ['num', 'Number']].map(function (o) {
-        return '<button data-a="group" data-v="' + o[0] + '" class="' + (set.group === o[0] ? 'on' : '') + '">' + (o[0] === 'num' ? 'Number ↓' : o[0] === 'pm' ? 'By PM' : 'By deadline') + '</button>';
-      }).join('') + '</div><div class="chips">' +
+      h += '<div class="toolbar"><div class="seg groupseg" role="group" aria-label="Group projects by">' + [['deadline', 'Deadline', 'flag', 'Group by next deadline'], ['pm', 'PM', 'user', 'Group by project manager'], ['num', 'Number', 'hash', 'Highest project number first']].map(function (o) {
+        return '<button data-a="group" data-v="' + o[0] + '" class="' + (set.group === o[0] ? 'on' : '') + '" aria-pressed="' + (set.group === o[0]) + '" title="' + o[3] + '">' + ic(o[2], 's') + '<span>' + o[1] + '</span></button>';
+      }).join('') + '</div>' + (set.group !== 'pm' ? '' : '<div class="chips">' +
         '<button class="chip' + (set.pm === 'all' ? ' on' : '') + '" data-a="pmf" data-v="all" aria-pressed="' + (set.pm === 'all') + '">All<span class="n">' + entries.length + '</span></button>' +
         present.map(function (p) {
           var n = entries.filter(function (e) { return proj(e.pid).pm === p.id; }).length;
           return '<button class="chip' + (set.pm === p.id ? ' on' : '') + '" data-a="pmf" data-v="' + p.id + '" aria-pressed="' + (set.pm === p.id) + '" style="' + pcVar(p) + '"><span class="dot"></span>' + esc(p.name) + '<span class="n">' + n + '</span></button>';
-        }).join('') + '</div></div>';
+        }).join('') + '</div>') + '</div>';
     }
     h += '</div>';
 
@@ -228,6 +235,10 @@
       h += '<section><div class="ghead">' + (g.dot ? '<span class="dot" style="' + pcVar(g.dot) + ';width:11px;height:11px"></span>' : '') + '<h2>' + esc(g.title) + '</h2><span class="sub">' + esc(g.sub) + '</span></div><div class="cards">' +
         g.list.map(function (e) { return cardHtml(e, wk, R); }).join('') + '</div></section>';
     });
+    if (doneList.length) {
+      h += '<section class="donesec"><div class="ghead"><h2>Done this week</h2><span class="sub">' + doneList.length + ' · still editable · click the green check to move one back up</span></div><div class="cards">' +
+        doneList.map(function (e) { return cardHtml(e, wk, R); }).join('') + '</div></section>';
+    }
     h += '</div></div><aside class="col-side">';
     if (entries.length) {
       var pct = planned ? Math.min(100, Math.round(logged / planned * 100)) : 0;
@@ -263,13 +274,14 @@
     var planned = parseFloat(e.hours) || 0;
     var pct = planned ? Math.min(100, Math.round(logged / planned * 100)) : 0;
     var on = state.timer && state.timer.pid === p.id;
-    var h = '<article class="card pcard"><div class="pcard-h">' +
+    var h = '<article class="card pcard' + (e.done ? ' is-done' : '') + '"><div class="pcard-h">' +
       '<button class="fold' + (open ? ' open' : '') + '" data-a="fold" data-id="' + p.id + '" aria-label="' + (open ? 'Collapse ' : 'Expand ') + esc(p.number) + '" aria-expanded="' + open + '">' + ic('chevR', 's') + '</button>' +
       '<div class="grow stack" style="gap:6px;padding-top:3px"><a class="ptitle" href="#/p/' + encodeURIComponent(p.id) + '" title="Open project notes"><b>' + esc(p.number) + '</b> <span>' + esc(p.name) + '</span></a><div class="pmeta">' +
       (p.revit ? '<span class="tag acc">' + esc(p.revit) + '</span>' : '<button class="tag dash" data-a="editProject" data-id="' + p.id + '" title="Set Revit version">+ RVT</button>') +
       pmPill(p.pm) +
       (dd ? '<span class="tag ' + relInfo(dd, wk).cls + '">' + ic('flag', 'xs') + esc(dlText(e, dd, wk)) + '</span>' : (e.label ? '<span class="tag">' + esc(e.label) + '</span>' : '')) +
-      '</div></div><button class="iconbtn sm' + (on ? ' on' : '') + '" data-a="timer" data-id="' + p.id + '" aria-label="' + (on ? 'Stop timer for ' : 'Start timer for ') + esc(p.number) + '">' + ic(on ? 'stop' : 'play', 's', 'width:14px;height:14px') + '</button></div>' +
+      '</div></div><button class="iconbtn sm donebtn' + (e.done ? ' is-on' : '') + '" data-a="weekDone" data-id="' + p.id + '" aria-pressed="' + !!e.done + '" title="' + (e.done ? 'Not done: bring it back to the top' : 'Done for this week') + '" aria-label="' + (e.done ? 'Bring back ' : 'Mark done for this week: ') + esc(p.number) + '">' + ic('check', 's', 'width:15px;height:15px') + '</button>' +
+      '<button class="iconbtn sm' + (on ? ' on' : '') + '" data-a="timer" data-id="' + p.id + '" aria-label="' + (on ? 'Stop timer for ' : 'Start timer for ') + esc(p.number) + '">' + ic(on ? 'stop' : 'play', 's', 'width:14px;height:14px') + '</button></div>' +
       '<div class="hours"><div class="meter grow' + (planned && logged > planned ? ' over' : '') + '"><i style="width:' + pct + '%"></i></div><span class="num sub" style="white-space:nowrap">' + (planned ? fmtH(logged) + ' / ' + fmtH(planned) + ' h' : fmtH(logged) + ' h · no plan') + '</span></div>';
     if (open) h += outlineHtml(p.id);
     else {
@@ -312,6 +324,7 @@
       var open = S.itemsFor(state, p.id).filter(function (i) { return i.kind === 'task' && !i.done; }).length;
       h += '<div class="prow"><div class="who"><div><b>' + esc(p.number) + '</b> <span style="font-weight:600">' + esc(p.name) + '</span></div><div class="pmeta">' +
         (p.revit ? '<span class="tag acc">' + esc(p.revit) + '</span>' : '<button class="tag dash" data-a="editProject" data-id="' + p.id + '">+ RVT</button>') + pmPill(p.pm) +
+        (e.done ? '<span class="tag good">Done</span>' : '') +
         (open ? '<span class="sub">' + open + (open === 1 ? ' open task' : ' open tasks') + '</span>' : '') + '</div></div>' +
         '<input class="inp num hrs" id="h-' + p.id + '" data-in="hours" data-id="' + p.id + '" value="' + esc(e.hours) + '" inputmode="decimal" placeholder="h" aria-label="Planned hours for ' + esc(p.number) + '">' +
         '<input class="inp dl" id="l-' + p.id + '" data-in="label" data-id="' + p.id + '" value="' + esc(e.label) + '" placeholder="Deadline, e.g. QA/QC Print" aria-label="Deadline for ' + esc(p.number) + '">' +
@@ -587,6 +600,40 @@
 
   /* ---------- actions ---------- */
   function itemById(id) { return state.items.find(function (i) { return i.id === id; }); }
+  /* An item moves together with its sub-items. It takes the level of the item it lands next to. */
+  function subtree(list, it) {
+    var i = list.indexOf(it), j = i + 1;
+    while (j < list.length && list[j].level > it.level) j++;
+    return list.slice(i, j);
+  }
+  function moveItem(dragId, targetId, after) {
+    var d = itemById(dragId), t = itemById(targetId);
+    if (!d || !t || d === t || d.pid !== t.pid) return false;
+    var list = S.itemsFor(state, d.pid);
+    var block = subtree(list, d);
+    if (block.indexOf(t) !== -1) return false;
+    var rest = list.filter(function (x) { return block.indexOf(x) === -1; });
+    var idx = rest.indexOf(t);
+    if (after) idx += subtree(rest, t).length;
+    var delta = t.level - d.level;
+    block.forEach(function (x) { x.level = Math.max(0, Math.min(4, x.level + delta)); });
+    Array.prototype.splice.apply(rest, [idx, 0].concat(block));
+    var k = 0;
+    state.items = state.items.map(function (x) { return x.pid === d.pid ? rest[k++] : x; });
+    return true;
+  }
+  function nudgeItem(id, dir) {
+    var d = itemById(id);
+    if (!d) return false;
+    var list = S.itemsFor(state, d.pid), i = list.indexOf(d);
+    if (dir < 0) {
+      var p = i - 1;
+      while (p >= 0 && list[p].level > d.level) p--;
+      return p >= 0 && moveItem(id, list[p].id, false);
+    }
+    var j = i + subtree(list, d).length;
+    return j < list.length && moveItem(id, list[j].id, true);
+  }
   function weekEntries(key) { return S.ensureWeek(state, key).entries; }
   function addEntry(key, pid) {
     var es = weekEntries(key);
@@ -603,7 +650,13 @@
   var actions = {
     fold: function (t) { ui.fold[t.dataset.id] = !ui.fold[t.dataset.id]; },
     compact: function () { state.settings.compact = !state.settings.compact; ui.fold = {}; },
-    group: function (t) { state.settings.group = t.dataset.v; },
+    group: function (t) { state.settings.group = t.dataset.v; if (t.dataset.v !== 'pm') state.settings.pm = 'all'; },
+    weekDone: function (t) {
+      var e = weekEntries(curWeek()).find(function (x) { return x.pid === t.dataset.id; });
+      if (!e) return;
+      e.done = !e.done;
+      if (e.done) showToast(proj(e.pid).number + ' is done for this week and moved to the bottom.', function () { e.done = false; });
+    },
     pmf: function (t) { state.settings.pm = t.dataset.v; },
     timer: function (t) {
       var id = t.dataset.id;
@@ -792,6 +845,12 @@
     var t = e.target;
     if (e.key === 'Escape' && ui.modal) { ui.modal = null; render(); return; }
     if (e.key === 'Enter' && t.classList && t.classList.contains('txt')) { e.preventDefault(); actions.editItem(t); render(); return; }
+    if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && t.classList && t.classList.contains('txt')) {
+      e.preventDefault();
+      var mid = t.dataset.id;
+      if (nudgeItem(mid, e.key === 'ArrowUp' ? -1 : 1)) { render(); var el = document.getElementById('txt-' + mid); if (el) el.focus(); }
+      return;
+    }
     var k = t.dataset && t.dataset.k;
     if (!k) {
       if (e.key === 'Enter' && t.id === 'planq') {
@@ -830,6 +889,47 @@
     ui.editItem = null;
     render();
   }
+  /* Drag and drop to reorder tasks and notes (grab the dotted handle on the left). */
+  var dragId = null;
+  function clearDrop() { document.querySelectorAll('.drop-before, .drop-after').forEach(function (x) { x.classList.remove('drop-before', 'drop-after'); }); }
+  function dropRow(e) {
+    var row = e.target && e.target.closest ? e.target.closest('[data-item]') : null;
+    if (!row || !dragId) return null;
+    var d = itemById(dragId), t = itemById(row.dataset.item);
+    if (!d || !t || d.pid !== t.pid || d === t) return null;
+    var r = row.getBoundingClientRect();
+    return { row: row, after: e.clientY > r.top + r.height / 2 };
+  }
+  document.addEventListener('dragstart', function (e) {
+    var g = e.target && e.target.closest ? e.target.closest('[data-drag]') : null;
+    if (!g) return;
+    dragId = g.dataset.drag;
+    var row = g.closest('.item');
+    try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); if (row) e.dataTransfer.setDragImage(row, 16, 12); } catch (err) { /* older browsers */ }
+    if (row) setTimeout(function () { row.classList.add('dragging'); }, 0);
+  });
+  document.addEventListener('dragover', function (e) {
+    if (!dragId) return;
+    var hit = dropRow(e);
+    clearDrop();
+    if (!hit) return;
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch (err) { /* */ }
+    hit.row.classList.add(hit.after ? 'drop-after' : 'drop-before');
+  });
+  document.addEventListener('drop', function (e) {
+    if (!dragId) return;
+    e.preventDefault();
+    var hit = dropRow(e), id = dragId;
+    dragId = null; clearDrop();
+    if (hit) moveItem(id, hit.row.dataset.item, hit.after);
+    render();
+  });
+  document.addEventListener('dragend', function () {
+    dragId = null; clearDrop();
+    document.querySelectorAll('.dragging').forEach(function (x) { x.classList.remove('dragging'); });
+  });
+
   document.addEventListener('focusout', function (e) {
     var t = e.target;
     if (t.dataset && t.dataset.k === 'editItem' && ui.editItem === t.dataset.id) setTimeout(function () { if (ui.editItem === t.dataset.id) commitEdit(t); }, 120);
