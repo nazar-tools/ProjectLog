@@ -5,7 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Project Log</title>
   <meta name="description" content="Weekly project planning, notes and time tracking.">
-  <meta name="theme-color" content="#2a78d6">
+  <meta name="theme-color" content="#f9f9f7">
+  <script>
+    (function () {
+      var t = 'auto';
+      try { t = (JSON.parse(localStorage.getItem('projectlog.v1') || '{}').settings || {}).theme || 'auto'; } catch (e) {}
+      var dark = t === 'dark' || (t !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#0d0d0d' : '#f9f9f7');
+    })();
+  </script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
