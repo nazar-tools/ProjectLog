@@ -1,6 +1,4 @@
-/* Project Log service worker: works offline, picks up new versions in the background.
-   Bump VERSION whenever you upload changed files so everyone gets the update. */
-var VERSION = 'projectlog-v1.2.0';
+var VERSION = 'projectlog-v1.2.1';
 var FILES = [
   './', 'index.html', 'css/styles.css', 'js/seed.js', 'js/store.js', 'js/app.js', 'manifest.webmanifest',
   'icons/favicon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'
