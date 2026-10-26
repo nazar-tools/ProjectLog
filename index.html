@@ -6,28 +6,45 @@
   <title>Project Log</title>
   <meta name="description" content="Weekly project planning, notes and time tracking.">
   <meta name="theme-color" content="#f9f9f7">
-  <script>
-    (function () {
-      var t = 'auto';
-      try { t = (JSON.parse(localStorage.getItem('projectlog.v1') || '{}').settings || {}).theme || 'auto'; } catch (e) {}
-      var dark = t === 'dark' || (t !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
-      document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#0d0d0d' : '#f9f9f7');
-    })();
-  </script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="css/styles.css">
+  <script>
+    // Apply the saved theme before the first paint so the page and title bar don't flash.
+    try {
+      const theme = JSON.parse(localStorage.getItem('projectlog.v1'))?.settings?.theme;
+      if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+    } catch {}
+    document.querySelector('meta[name="theme-color"]').content = getComputedStyle(document.documentElement).backgroundColor;
+  </script>
 </head>
 <body>
   <div id="root"><p style="padding:24px;font-family:system-ui">Loading Project Log…</p></div>
   <noscript><p style="padding:24px">Project Log needs JavaScript turned on.</p></noscript>
+
+  <!-- Order matters: each file can use what the files above it define. -->
+  <script src="js/version.js"></script>
   <script src="js/seed.js"></script>
   <script src="js/store.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/views/outline.js"></script>
+  <script src="js/views/week.js"></script>
+  <script src="js/views/plan.js"></script>
+  <script src="js/views/projects.js"></script>
+  <script src="js/views/project.js"></script>
+  <script src="js/views/time.js"></script>
+  <script src="js/views/settings.js"></script>
+  <script src="js/actions.js"></script>
   <script src="js/app.js"></script>
   <script>
-    if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
-      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function (e) { console.warn('Service worker not registered', e); }); });
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      // When an update installs, reload once so it takes effect now instead of next time.
+      const hadWorker = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (hadWorker) location.reload();
+      });
+      navigator.serviceWorker.register('sw.js');
     }
   </script>
 </body>

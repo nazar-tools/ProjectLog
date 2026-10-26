@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Project Log tests</title>
+  <style>
+    body { font: 14px/1.5 system-ui, sans-serif; margin: 24px; }
+    .pass { color: #1f6b3f; }
+    .fail { color: #c0392b; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>Project Log tests</h1>
+  <p>Checks the data logic in js/store.js. Open this page after editing that file; every line should be green.
+    It never touches your saved data.</p>
+  <p id="summary"></p>
+  <ol id="out"></ol>
+
+  <script src="js/store.js"></script>
+  <script>
+    const S = window.Store;
+    const out = document.getElementById('out');
+    let failed = 0;
+
+    function test(name, fn) {
+      const li = document.createElement('li');
+      try {
+        fn();
+        li.className = 'pass';
+        li.textContent = name;
+      } catch (e) {
+        failed++;
+        li.className = 'fail';
+        li.textContent = `${name}: ${e.message}`;
+      }
+      out.appendChild(li);
+    }
+    function eq(actual, expected) {
+      const a = JSON.stringify(actual);
+      const b = JSON.stringify(expected);
+      if (a !== b) throw new Error(`expected ${b}, got ${a}`);
+    }
+
+    function sample() {
+      const s = S.fromSeed({
+        people: [{ name: 'Ana', colour: 'blue' }, { name: 'Bo', colour: 'url(evil)' }],
+        projects: [{ number: '26208', name: 'Clinic', pm: 'Ana' }, { number: '25063', name: 'School' }]
+      });
+      // A: a, a1, a2 (a1 and a2 indented under a), then b, then c.
+      s.items = ['a', 'a1', 'a2', 'b', 'c'].map(id => ({
+        id, pid: 'p_26208', text: id, kind: 'task', level: id.length - 1, done: false, doneAt: '', created: '2026-10-01'
+      }));
+      return s;
+    }
+    const order = s => S.itemsFor(s, 'p_26208').map(i => i.id);
+
+    test('weekKey gives the Monday', () => {
+      eq(S.weekKey(new Date(2026, 9, 18)), '2026-10-12');
+      eq(S.weekKey(new Date(2026, 9, 12)), '2026-10-12');
+    });
+    test('addDays survives the daylight saving change', () => {
+      eq(S.iso(S.addDays(S.parseISO('2026-11-01'), 1)), '2026-11-02');
+      eq(S.iso(S.addDays(S.parseISO('2026-03-08'), 7)), '2026-03-15');
+    });
+    test('roundQ rounds to quarter hours', () => {
+      eq([0.1, 0.13, 0.5, 1.37, 2.9].map(S.roundQ), [0, 0.25, 0.5, 1.25, 3]);
+    });
+    test('seed colours outside the palette become gray', () => {
+      eq(sample().people.map(p => p.color), ['blue', 'gray']);
+    });
+    test('migrate fills in missing parts', () => {
+      const s = S.migrate({ projects: {}, people: [{ id: 'x', name: 'X', color: '"><b>' }] });
+      eq([Array.isArray(s.items), s.settings.capacity, s.people[0].color], [true, 40, 'gray']);
+    });
+
+    test('moveItem carries sub-items along', () => {
+      const s = sample();
+      S.moveItem(s, 'a', 'b', true);
+      eq(order(s), ['b', 'a', 'a1', 'a2', 'c']);
+    });
+    test('moveItem refuses to drop an item into its own sub-items', () => {
+      const s = sample();
+      eq(S.moveItem(s, 'a', 'a1', true), false);
+      eq(order(s), ['a', 'a1', 'a2', 'b', 'c']);
+    });
+    test('nudgeItem hops over a whole block', () => {
+      const s = sample();
+      S.nudgeItem(s, 'b', -1);
+      eq(order(s), ['b', 'a', 'a1', 'a2', 'c']);
+      S.nudgeItem(s, 'b', 1);
+      eq(order(s), ['a', 'a1', 'a2', 'b', 'c']);
+    });
+    test('deleteItem removes sub-items and restoreItems puts them back in place', () => {
+      const s = sample();
+      const deleted = S.deleteItem(s, 'a');
+      eq(order(s), ['b', 'c']);
+      S.restoreItems(s, deleted);
+      eq(order(s), ['a', 'a1', 'a2', 'b', 'c']);
+    });
+    test('addItem with a leading dash makes a note', () => {
+      const s = sample();
+      const it = S.addItem(s, 'p_26208', '- call the PM', 0);
+      eq([it.kind, it.text, order(s).pop()], ['note', 'call the PM', it.id]);
+    });
+
+    test('peekWeek previews a copy of last week without storing it', () => {
+      const s = sample();
+      s.weeks['2026-10-05'] = { entries: [{ pid: 'p_26208', hours: '6', label: 'QA/QC', day: 'Fri', date: '', done: true }] };
+      const next = S.peekWeek(s, '2026-10-12');
+      eq(next.entries, [{ pid: 'p_26208', hours: '6', label: '', day: '', date: '' }]);
+      eq(Object.keys(s.weeks), ['2026-10-05']);
+      S.ensureWeek(s, '2026-10-12');
+      eq(Object.keys(s.weeks).sort(), ['2026-10-05', '2026-10-12']);
+    });
+    test('closePastWeeks freezes tasks as they stood that week', () => {
+      const s = sample();
+      s.weeks['2020-01-06'] = { entries: [{ pid: 'p_26208', hours: '', label: '', day: '', date: '' }] };
+      s.items.forEach(i => { i.created = '2020-01-01'; });
+      s.items[3].done = true;
+      s.items[3].doneAt = '2020-01-08';
+      eq(S.closePastWeeks(s), 1);
+      s.items = [];
+      const frozen = s.weeks['2020-01-06'].closed.items.p_26208;
+      eq([frozen.length, frozen[3].done, frozen[0].done], [5, true, false]);
+      eq(S.closePastWeeks(s), 0);
+    });
+
+    test('a timer across midnight is split per day', () => {
+      const s = sample();
+      const realNow = Date.now;
+      const start = new Date(2026, 9, 13, 23, 30).getTime();
+      s.timer = { pid: 'p_26208', start };
+      Date.now = () => start + 90 * 60000;
+      try {
+        const logged = S.stopTimer(s);
+        eq(logged.map(e => [e.date, e.minutes]), [['2026-10-13', 30], ['2026-10-14', 60]]);
+      } finally {
+        Date.now = realNow;
+      }
+    });
+    test('a timer under a minute logs nothing', () => {
+      const s = sample();
+      s.timer = { pid: 'p_26208', start: Date.now() - 20000 };
+      eq([S.stopTimer(s).length, s.timer, s.time.length], [0, null, 0]);
+    });
+
+    test('mergeSeed fills blanks and keeps your edits', () => {
+      const s = sample();
+      s.projects.p_26208.name = 'Clinic (renamed)';
+      const added = S.mergeSeed(s, {
+        people: [{ name: 'Cy', colour: 'teal' }],
+        projects: [{ number: '26208', name: 'Clinic', revit: 'RVT26' }, { number: '26300', name: 'New', pm: 'Cy' }]
+      });
+      eq([added, s.projects.p_26208.name, s.projects.p_26208.revit, s.projects.p_26300.pm], [1, 'Clinic (renamed)', 'RVT26', 'pm_cy']);
+    });
+
+    document.getElementById('summary').innerHTML = failed
+      ? `<b class="fail">${failed} failed</b>`
+      : `<b class="pass">All ${out.children.length} passed</b>`;
+  </script>
+</body>
+</html>
