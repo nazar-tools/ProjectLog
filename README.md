@@ -10,13 +10,20 @@ css/styles.css           all styles; colours are defined once at the top (light 
 js/version.js            version number; bump it when you upload changes
 js/seed.js               empty on purpose (see "Your project list")
 js/store.js              data, saving, weeks, timers, task ordering
-js/core.js               shared state and small helpers (formatting, icons, PM pills)
-js/views/outline.js      task and note list on cards and project pages
-js/views/week.js         This week, including past weeks
+js/core.js               shared state and small helpers (formatting, icons, PM pills, timer bar)
+js/backup.js             weekly automatic backup into a folder you pick (Edge/Chrome)
+js/views/outline.js      task and note list on cards and project pages, "where I left off"
+js/views/week.js         This week, past weeks, the "Coming up" deadline strip
 js/views/plan.js         Plan week
 js/views/projects.js     Projects list
 js/views/project.js      one project, its edit form, and the New project dialog
 js/views/time.js         Timesheet and Copy for Adjera
+js/views/timeline.js     Timesheet's timeline view with untracked gaps
+js/views/review.js       Monday review: enter last week in Adjera day by day
+js/views/update.js       weekly update for a PM (Teams / Outlook)
+js/views/health.js       hours against budget, tasks carried over, Revit versions
+js/views/guard.js        timer guard prompts (laptop slept, long timer, end of day)
+js/views/palette.js      Ctrl+K quick actions
 js/views/settings.js     Settings
 js/actions.js            what each button does (data-a="name" runs actions.name)
 js/app.js                routing, page frame, keyboard and drag events, startup

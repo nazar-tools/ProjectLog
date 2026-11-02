@@ -43,6 +43,8 @@ function viewProjects() {
           <div class="sub">${all.length} projects · ${noRevit} without a Revit version</div>
         </div>
         <a class="iconbtn only-narrow" href="#/settings" aria-label="Settings">${ic('sliders', 's')}</a>
+        <a class="btn hide-narrow" href="#/health">${ic('pulse', 's')}Hours &amp; health</a>
+        <a class="iconbtn only-narrow" href="#/health" aria-label="Hours and health">${ic('pulse', 's')}</a>
         <button class="btn pri hide-narrow" data-a="newProject">${ic('plus', 's')}New project</button>
         <button class="iconbtn pri only-narrow" data-a="newProject" aria-label="New project">${ic('plus', 's')}</button>
       </div>

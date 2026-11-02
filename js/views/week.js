@@ -41,6 +41,7 @@ function viewWeek() {
         </div>
         <div class="row">
           <a class="iconbtn only-narrow" href="#/settings" aria-label="Settings">${ic('sliders', 's')}</a>
+          <button class="iconbtn" data-a="palOpen" aria-label="Quick actions (Ctrl+K)" title="Quick actions (Ctrl+K)">${ic('search', 's')}</button>
           <button class="iconbtn" data-a="compact" aria-label="${compactLabel}" title="${compactLabel}">${ic('list', 's')}</button>
           ${mainButton}
         </div>
@@ -49,6 +50,7 @@ function viewWeek() {
       ${past ? '' : timerBar() + adjeraReminder(cw)}
       ${entries.length ? groupToolbar(entries, present, pmFilter) : ''}
     </div>
+    ${wk === cw ? deadlineRadar(cw) : ''}
     ${weekEmptyState(entries.length, past)}
     <div class="cols">
       <div class="col-main">
@@ -132,6 +134,7 @@ function groupSection(g, ctx) {
       <div class="ghead">
         ${g.dot ? `<span class="dot lg" style="${pcVar(g.dot)}"></span>` : ''}
         <h2>${esc(g.title)}</h2><span class="sub">${esc(g.sub)}</span>
+        ${g.dot && !ctx.past ? `<button class="btn ghost sm pushright" data-a="pmUpdate" data-id="${esc(g.dot.id)}">${ic('send', 's')}Update</button>` : ''}
       </div>
       <div class="cards">${g.list.map(e => cardHtml(e, ctx)).join('')}</div>
     </section>`;
@@ -362,8 +365,8 @@ function adjeraReminder(cw) {
     <div class="note wrap center-y">
       ${ic('info', 's')}
       <span class="grow minw">Last week (${fmtRange(prev)}) has ${plural(missing.length, 'day')} with hours not marked as entered in Adjera.</span>
-      <button class="btn sm" data-a="openTs" data-v="${prev}">Open last week’s timesheet</button>
-      <button class="btn sm ghost" data-a="viewWeek" data-v="${prev}">Review last week</button>
+      <button class="btn sm pri" data-a="openReview" data-v="${prev}">Review &amp; enter last week</button>
+      <button class="btn sm ghost" data-a="viewWeek" data-v="${prev}">See last week’s tasks</button>
     </div>`;
 }
 
@@ -371,4 +374,33 @@ function oneNoteButton() {
   const lw = state.seedInfo?.lastOneNoteWeek;
   if (!lw || state.seedInfo.weekSeeded) return '';
   return `<button class="btn" data-a="seedWeek">Start from OneNote ${esc(lw.title)} (${plural(lw.numbers.length, 'project')})</button>`;
+}
+
+// Deadlines from today through the next two weeks, from this week's list and next week's plan.
+// Overdue ones that aren't marked done stay at the front.
+function deadlineRadar(cw) {
+  const today = S.today();
+  const horizon = S.iso(S.addDays(new Date(), 13));
+  const nextWk = S.iso(S.addDays(S.parseISO(cw), 7));
+  const found = [];
+  for (const [key, week] of [[cw, S.peekWeek(state, cw)], [nextWk, state.weeks[nextWk]]]) {
+    for (const e of week?.entries || []) {
+      const dd = S.deadlineDate(key, e);
+      if (!dd || !proj(e.pid) || e.done || dd > horizon) continue;
+      if (dd < today && key !== cw) continue;
+      found.push({ e, dd });
+    }
+  }
+  if (!found.length) return '';
+  found.sort((a, b) => a.dd.localeCompare(b.dd));
+  const chips = found.map(({ e, dd }) => {
+    const p = proj(e.pid);
+    const rel = relInfo(dd, cw);
+    const when = dd < today ? 'Overdue' : dd === today ? 'Today' : `${WD[S.parseISO(dd).getDay()]} ${S.parseISO(dd).getDate()}`;
+    return `
+      <a class="radarchip ${rel.cls}" href="${projectHref(p.id)}" style="${pcVar(person(p.pm))}">
+        <span class="when">${when}</span><span class="dot"></span><b class="num">${esc(p.number)}</b>${e.label ? `<span class="sub">${esc(e.label)}</span>` : ''}
+      </a>`;
+  }).join('');
+  return `<div class="radar" aria-label="Deadlines in the next two weeks"><span class="lbl">Coming up</span>${chips}</div>`;
 }

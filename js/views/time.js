@@ -3,25 +3,29 @@
 
 const tsKey = () => S.weekKey(S.addDays(new Date(), ui.tsOffset * 7));
 
-function viewTime() {
-  const wk = tsKey();
+// The rows and numbers behind a week of time: projects planned that week, then anything else
+// with time on it, then overhead; each cell rounded the way Adjera gets it.
+function timesheetData(wk) {
   const R = S.weekRange(wk);
-  const t = S.today();
   const days = weekDays(wk);
-  if (!days.includes(ui.tsDay)) ui.tsDay = days.includes(t) ? t : days[0];
   const week = wk < curWeek() ? state.weeks[wk] : S.peekWeek(state, wk);
-
-  // Rows: projects planned that week, then anything else with time on it, then overhead.
   const pids = [];
   const addPid = pid => { if (!pids.includes(pid)) pids.push(pid); };
   (week?.entries || []).filter(e => proj(e.pid)).forEach(e => addPid(e.pid));
   state.time.filter(x => x.pid !== 'OH' && x.date >= R.startIso && x.date <= R.endIso).forEach(x => addPid(x.pid));
   if (state.timer && state.timer.pid !== 'OH' && days.some(d => liveMinutes(state.timer.pid, d) > 0)) addPid(state.timer.pid);
   pids.push('OH');
-
   const minutes = (pid, d) => S.minutesFor(state, pid, d, d) + liveMinutes(pid, d);
   const grid = pids.map(pid => days.map(d => S.roundQ(minutes(pid, d) / 60)));
   const dayTotals = days.map((d, i) => sum(grid, row => row[i]));
+  return { days, week, pids, minutes, grid, dayTotals };
+}
+
+function viewTime() {
+  const wk = tsKey();
+  const t = S.today();
+  const { days, week, pids, minutes, grid, dayTotals } = timesheetData(wk);
+  if (!days.includes(ui.tsDay)) ui.tsDay = days.includes(t) ? t : days[0];
   const weekTotal = sum(dayTotals, x => x);
   const entered = days.filter(d => state.adjera[d]).length;
   const daysWithTime = dayTotals.filter(x => x > 0).length;
@@ -53,6 +57,7 @@ function viewTime() {
           <h1 class="h1">Timesheet</h1>
           <div class="sub">Rounded to 0.25 h · Adjera code = project number</div>
         </div>
+        <button class="btn" data-a="openReview" data-v="${esc(wk)}">${ic('check', 's')}<span class="hide-narrow">Review &amp; enter week</span><span class="only-narrow">Review</span></button>
         <a class="iconbtn only-narrow" href="#/settings" aria-label="Settings">${ic('sliders', 's')}</a>
       </div>
       ${tsWeekNav(wk)}
@@ -150,19 +155,26 @@ function dayDetail({ pids, grid, minutes, dayTotals, di }) {
     : dayTotals[di] ? '<span class="tag warn">Not in Adjera yet</span>' : '';
   const messy = groups.some(g => !timerOn(g.pid) && (g.entries.length > 1 || g.raw % 15));
 
+  const viewSeg = `
+    <div class="seg viewseg" role="group" aria-label="Show the day as">
+      <button data-a="tsView" data-v="list" class="${ui.tsView === 'list' ? 'on' : ''}" aria-pressed="${ui.tsView === 'list'}">List</button>
+      <button data-a="tsView" data-v="timeline" class="${ui.tsView === 'timeline' ? 'on' : ''}" aria-pressed="${ui.tsView === 'timeline'}">Timeline</button>
+    </div>`;
+
   return `
     <div class="row between wrap">
       <h2 class="h2">${fmtDay(day)} <span class="sub dayhrs">${dayTotals[di].toFixed(2)} h</span></h2>
-      ${status}
+      <div class="row tight">${status}${viewSeg}</div>
     </div>
-    <div class="card clip list">
-      ${groups.length ? groups.map(g => projectDayRow(g, pids, day)).join('') : '<div class="empty">Nothing logged. Start a timer on a card, or add time below.</div>'}
-    </div>
-    ${messy ? `
-      <div class="row wrap tight">
-        <button class="btn sm" data-a="roundDay">${ic('check', 's')}Round every project to ¼ h</button>
-        <span class="sub small">Turns each project’s blocks into one entry. You can undo it.</span>
-      </div>` : ''}`;
+    ${ui.tsView === 'timeline' ? dayTimeline(day, pids) : `
+      <div class="card clip list">
+        ${groups.length ? groups.map(g => projectDayRow(g, pids, day)).join('') : '<div class="empty">Nothing logged. Start a timer on a card, or add time below.</div>'}
+      </div>
+      ${messy ? `
+        <div class="row wrap tight">
+          <button class="btn sm" data-a="roundDay">${ic('check', 's')}Round every project to ¼ h</button>
+          <span class="sub small">Turns each project’s blocks into one entry. You can undo it.</span>
+        </div>` : ''}`}`;
 }
 
 function projectDayRow({ pid, rounded, raw, entries }, pids, day) {
@@ -243,8 +255,7 @@ function addTimeCard() {
     </div>`;
 }
 
-function adjeraCopyCard({ pids, grid, minutes, dayTotals, di }) {
-  const day = ui.tsDay;
+function adjeraCopyCard({ pids, grid, minutes, dayTotals, di }, day = ui.tsDay) {
   const lines = pids.map((pid, r) => [pidLabel(pid), grid[r][di]]).filter(([, h]) => h > 0);
   const copyText = lines.map(([code, h]) => `${code}\t${h.toFixed(2)}`).join('\n');
   // Monospace preview, code padded to 10 characters.

@@ -13,6 +13,7 @@ function outlineHtml(pid) {
 
   return `
     <div class="items">
+      ${leftOffLine(pid)}
       ${items.map(itemRow).join('')}
       <div class="addline" style="padding-left:${18 + level * 22}px">
         <input id="add-${esc(pid)}" data-k="add" data-id="${esc(pid)}" placeholder="Add task…  – for a note · Tab indents" aria-label="Add a task or note">
@@ -37,6 +38,7 @@ function itemRow(it) {
       <span class="grip" draggable="true" data-drag="${id}" title="Drag to reorder (or Alt + ↑/↓)">${ic('grip', 'xs')}</span>
       ${check}
       ${label}
+      ${staleWeeks(it) ? `<span class="tag warn stale" title="Open for ${staleWeeks(it)} weeks">${staleWeeks(it)} wk</span>` : ''}
       <span class="acts">
         <button data-a="outdent" data-id="${id}" title="Outdent" aria-label="Outdent">${ic('outdent', 'xs')}</button>
         <button data-a="indent" data-id="${id}" title="Indent" aria-label="Indent">${ic('indent', 'xs')}</button>
@@ -44,4 +46,17 @@ function itemRow(it) {
         <button data-a="delItem" data-id="${id}" title="Delete" aria-label="Delete">${ic('x', 'xs')}</button>
       </span>
     </div>`;
+}
+
+// One line for "where I left off", saved as you type and dated, so tomorrow starts here.
+// Empty, it only shows while you hover or work in the card.
+function leftOffLine(pid) {
+  const lo = proj(pid)?.leftOff;
+  const when = lo ? (lo.date === S.today() ? 'today' : WD[S.parseISO(lo.date).getDay()]) : '';
+  return `
+    <label class="leftoff${lo ? '' : ' empty'}">
+      ${ic('bookmark', 'xs')}
+      <input id="lo-${esc(pid)}" data-in="leftOff" data-id="${esc(pid)}" value="${esc(lo?.text)}" placeholder="Where I left off… (shows here next time)" aria-label="Where I left off">
+      ${when ? `<span class="sub small">${when}</span>` : ''}
+    </label>`;
 }

@@ -10,7 +10,8 @@
   const MAX_LEVEL = 4;
   const DEFAULT_SETTINGS = {
     revitVersions: ['RVT27', 'RVT26', 'RVT25', 'RVT24'],
-    overheadCode: '', capacity: 40, group: 'deadline', pm: 'all', compact: false, theme: 'auto', lastBackup: null
+    overheadCode: '', capacity: 40, group: 'deadline', pm: 'all', compact: false, theme: 'auto', lastBackup: null,
+    dayEnd: '18:00', longTimerHours: 3, myName: '', updHours: true, updOpen: true, updNext: true, lastAutoBackup: ''
   };
 
   const uid = (prefix = 'x') => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -52,6 +53,7 @@
       v: 1, created: new Date().toISOString(),
       people: (seed.people || []).map(seedPerson),
       projects: {}, items: [], journal: [], weeks: {}, time: [], timer: null, adjera: {}, scratch: '',
+      gapSkips: {}, updatesSent: {},
       settings: { ...DEFAULT_SETTINGS, revitVersions: (seed.revitVersions || DEFAULT_SETTINGS.revitVersions).slice() },
       seedInfo: seedInfo(seed, false)
     };
@@ -86,7 +88,7 @@
   function migrate(s) {
     s.settings = { ...DEFAULT_SETTINGS, ...s.settings };
     for (const k of ['people', 'items', 'journal', 'time']) if (!Array.isArray(s[k])) s[k] = [];
-    for (const k of ['projects', 'weeks', 'adjera']) if (!s[k] || typeof s[k] !== 'object') s[k] = {};
+    for (const k of ['projects', 'weeks', 'adjera', 'gapSkips', 'updatesSent']) if (!s[k] || typeof s[k] !== 'object') s[k] = {};
     s.seedInfo = s.seedInfo || { flags: {}, needsReview: [] };
     // Colours end up inside style attributes, so only palette names are allowed through.
     for (const p of s.people) if (!COLORS.includes(p.color)) p.color = 'gray';
@@ -298,11 +300,12 @@
   }
 
   // Logs the running timer and returns the entries it made. A timer that runs past midnight
-  // is split so each day gets its own share; anything under a minute is dropped.
-  function stopTimer(s) {
+  // is split so each day gets its own share; anything under a minute is dropped. `at` stops
+  // it at an earlier moment, e.g. when you forgot it running.
+  function stopTimer(s, at = Date.now()) {
     if (!s.timer) return [];
     const { pid, start } = s.timer;
-    const end = Date.now();
+    const end = Math.max(start, Math.min(at, Date.now()));
     s.timer = null;
     const logged = [];
     for (let from = start; from < end;) {
@@ -341,6 +344,53 @@
     s.time.push(...removed);
   }
 
+  // Stretches of at least five minutes between the timed blocks of a day, in time order.
+  // `extra` adds blocks that aren't stored yet, like a running timer.
+  function dayGaps(s, date, extra = []) {
+    const blocks = s.time.filter(t => t.date === date && t.start).concat(extra).sort((a, b) => a.start - b.start);
+    const skipped = s.gapSkips[date] || [];
+    const gaps = [];
+    let edge = null;
+    for (const b of blocks) {
+      if (edge !== null && b.start - edge >= 5 * 60000) {
+        gaps.push({ from: edge, to: b.start, skipped: skipped.includes(`${edge}-${b.start}`) });
+      }
+      edge = edge === null ? b.end : Math.max(edge, b.end);
+    }
+    return gaps;
+  }
+
+  // Gives an untracked stretch of a day to a project, as if a timer had run then.
+  function fillGap(s, pid, date, from, to) {
+    const entry = { id: uid('t'), pid, date, start: from, end: to, minutes: Math.round((to - from) / 60000), note: '', src: 'filled' };
+    s.time.push(entry);
+    return entry;
+  }
+
+  // Moves every timed block on a day to the nearest quarter hour and returns the old times,
+  // which unsnapDay puts back.
+  function snapDay(s, date) {
+    const q = 15 * 60000;
+    const snap = ms => Math.round(ms / q) * q;
+    const before = [];
+    for (const t of s.time) {
+      if (t.date !== date || !t.start) continue;
+      const start = snap(t.start);
+      const end = Math.max(snap(t.end), start + q);
+      if (start === t.start && end === t.end) continue;
+      before.push({ id: t.id, start: t.start, end: t.end, minutes: t.minutes });
+      Object.assign(t, { start, end, minutes: Math.round((end - start) / 60000) });
+    }
+    return before;
+  }
+
+  function unsnapDay(s, before) {
+    for (const b of before) {
+      const t = s.time.find(x => x.id === b.id);
+      if (t) Object.assign(t, b);
+    }
+  }
+
   // Snaps every project on a day to its nearest quarter hour, one entry each. Time that would
   // round to zero is left alone so it never disappears without you deciding.
   function roundDay(s, date) {
@@ -363,7 +413,8 @@
     saveError: () => saveError, onSaveStatus: null,
     peekWeek, ensureWeek, inWeek, deadlineDate, itemsAsOf, closePastWeeks,
     itemsFor, addItem, subtree, moveItem, nudgeItem, deleteItem, restoreItems,
-    minutesFor, startTimer, stopTimer, roundQ, setDayMinutes, undoDayEdit, roundDay
+    minutesFor, startTimer, stopTimer, roundQ, setDayMinutes, undoDayEdit, roundDay,
+    dayGaps, fillGap, snapDay, unsnapDay
   };
   window.Store = Store;
 })();

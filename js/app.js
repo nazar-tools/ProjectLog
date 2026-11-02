@@ -3,12 +3,13 @@
 function route() {
   const [name, id] = location.hash.replace(/^#\/?/, '').split('/');
   if (name === 'p' && id) return { name: 'project', id: decodeURIComponent(id) };
-  if (['week', 'plan', 'projects', 'time', 'settings'].includes(name)) return { name };
+  if (['week', 'plan', 'projects', 'time', 'settings', 'review', 'update', 'health'].includes(name)) return { name };
   return { name: 'week' };
 }
 
 const VIEWS = {
   week: viewWeek, plan: viewPlan, projects: viewProjects, time: viewTime, settings: viewSettings,
+  review: viewReview, update: viewUpdate, health: viewHealth,
   project: r => viewProject(r.id)
 };
 
@@ -17,11 +18,13 @@ const NAV = [
   ['plan', 'Plan week', 'plan', 'Plan'],
   ['projects', 'Projects', 'folder', 'Projects'],
   ['time', 'Timesheet', 'clock', 'Time'],
+  ['update', 'PM updates', 'send'],
   ['settings', 'Settings', 'sliders']
 ];
 
 function shell(content, r) {
-  const active = r.name === 'project' ? 'projects' : r.name;
+  // Pages without their own nav entry light up the section they belong to.
+  const active = { project: 'projects', health: 'projects', review: 'time' }[r.name] || r.name;
   const lastBackup = state.settings.lastBackup;
   const sideLinks = NAV.map(([key, label, icon]) =>
     `<a href="#/${key}"${active === key ? ' class="on" aria-current="page"' : ''}>${ic(icon)}${label}</a>`
@@ -42,17 +45,31 @@ function shell(content, r) {
       <aside class="side">
         <div class="brand"><span class="logo">${ic('logo', 's')}</span>Project Log</div>
         <nav class="nav" aria-label="Main">${sideLinks}</nav>
+        <button class="quickbtn" data-a="palOpen">${ic('search', 's')}<span class="grow">Quick actions</span><span class="kbd">Ctrl K</span></button>
         <div class="side-foot">
           <span class="lbl">Backup</span>
-          <span class="sub">${lastBackup ? 'Last backup ' + fmtShort(lastBackup.slice(0, 10)) : 'Not backed up yet'}</span>
+          <span class="sub">${lastBackup ? 'Last backup ' + fmtShort(lastBackup.slice(0, 10)) : 'Not backed up yet'}${AutoBackup.status === 'ready' ? ' · weekly to ' + esc(AutoBackup.folderName) : ''}</span>
           <button class="btn sm" data-a="export">${ic('download', 's')}Back up now</button>
         </div>
       </aside>
-      <main class="main" id="main">${saveBanner()}${content}</main>
+      <main class="main" id="main">${saveBanner()}${autoBackupBanner()}${guardHtml()}${content}</main>
       <nav class="tabbar" aria-label="Main">${tabs}</nav>
     </div>
     ${toast}
-    ${ui.modal ? newProjectModal() : ''}`;
+    ${ui.modal ? newProjectModal() : ''}
+    ${ui.palette ? paletteHtml() : ''}`;
+}
+
+// The weekly backup is due but the browser dropped its permission for the folder (it does
+// that after a restart). One click gives it back.
+function autoBackupBanner() {
+  if (AutoBackup.status !== 'needs-click' || !autoBackupDue()) return '';
+  return `
+    <div class="note wrap center-y">
+      ${ic('folderUp', 's')}
+      <span class="grow minw">This week’s automatic backup to ${esc(AutoBackup.folderName)} needs your OK.</span>
+      <button class="btn sm" data-a="autoNow">Allow and back up</button>
+    </div>`;
 }
 
 // Shown while saving to this browser fails, so you never keep working on changes that are lost on close.
@@ -108,8 +125,32 @@ document.addEventListener('click', e => {
 
 document.addEventListener('keydown', e => {
   const t = e.target;
-  if (e.key === 'Escape' && ui.modal) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    ui.palette = ui.palette ? null : { q: '', sel: 0 };
+    render();
+    if (ui.palette) document.getElementById('palq')?.focus();
+    return;
+  }
+  if (ui.palette && t.id === 'palq') {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const n = paletteItems.length;
+      if (n) ui.palette.sel = (ui.palette.sel + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+      render();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runPaletteItem(ui.palette.sel);
+      save();
+      render();
+      return;
+    }
+  }
+  if (e.key === 'Escape' && (ui.modal || ui.palette)) {
     ui.modal = null;
+    ui.palette = null;
     render();
     return;
   }
@@ -309,6 +350,23 @@ document.addEventListener('input', e => {
     }
     case 'newPm': ui.newPm = t.value; return;
     case 'newVer': ui.newVer = t.value; return;
+    case 'palq': ui.palette.q = t.value; ui.palette.sel = 0; render(); return;
+    case 'leftOff': {
+      const p = proj(id);
+      if (!p) return;
+      if (t.value.trim()) p.leftOff = { text: t.value, date: S.today() };
+      else delete p.leftOff;
+      t.closest('.leftoff')?.classList.toggle('empty', !p.leftOff);
+      break;
+    }
+    case 'updateText': ui.updateText[t.dataset.v] = t.value; return;
+    case 'myName': state.settings.myName = t.value.trim(); break;
+    case 'pmEmail': {
+      const p = person(id);
+      if (p) p.email = t.value.trim();
+      break;
+    }
+    case 'longTimer': state.settings.longTimerHours = parseFloat(t.value) || 3; break;
     case 'ohcode': state.settings.overheadCode = t.value.trim(); break;
     case 'capacity': state.settings.capacity = parseFloat(t.value) || 40; break;
     default: return;
@@ -349,6 +407,16 @@ document.addEventListener('change', e => {
       ui.tsOpen = {};
       render();
       return;
+    case 'dayEnd':
+      if (t.value) state.settings.dayEnd = t.value;
+      break;
+    case 'reviewCell': {
+      const hours = t.value.trim() ? parseHours(t.value) : 0;
+      if (hours >= 0) setDayHours(id, S.roundQ(hours), t.dataset.v);
+      else showToast('Type hours like 1.5 or 1:30');
+      render();
+      break;
+    }
     case 'tsTotal': {
       const hours = parseHours(t.value);
       if (hours >= 0) setDayHours(id, S.roundQ(hours));
@@ -442,6 +510,7 @@ function importFile(file) {
 window.addEventListener('hashchange', () => {
   const r = route();
   ui.pmMenu = false;
+  ui.palette = null;
   if (r.name !== 'week') ui.viewWeek = null;
   if (r.name !== 'project') closeEdit();
   render();
@@ -456,18 +525,31 @@ S.onOtherWindowSave(fresh => {
 });
 S.onSaveStatus = () => render();
 
-// The clock on a running timer ticks every second without a full redraw.
+// Last click or key press in the app, the timer guard's best guess for when work stopped.
+let lastActivity = Date.now();
+for (const type of ['pointerdown', 'keydown']) document.addEventListener(type, () => { lastActivity = Date.now(); }, true);
+
+// The clock on a running timer ticks every second without a full redraw. A jump of more than
+// five minutes between ticks means the laptop was asleep; the timer guard asks about it.
+let lastTick = Date.now();
 setInterval(() => {
+  const now = Date.now();
+  if (state.timer && now - lastTick > 5 * 60000) {
+    ui.sleep = { pid: state.timer.pid, from: Math.max(lastTick, state.timer.start), to: now };
+    render();
+  }
+  lastTick = now;
   if (state.timer) document.querySelectorAll('[data-elapsed]').forEach(el => { el.textContent = elapsedText(); });
 }, 1000);
 
 // Once a minute: freeze a week that just ended, and refresh hours while a timer runs. Skipped
 // while you're typing, dragging, or have a menu or dialog open, so nothing closes under you.
 setInterval(() => {
+  runAutoBackup();
   const closed = S.closePastWeeks(state);
   if (closed) save();
   if (!closed && !state.timer) return;
-  if (document.hidden || dragId || ui.modal || ui.pmMenu) return;
+  if (document.hidden || dragId || ui.modal || ui.pmMenu || ui.palette) return;
   if (document.activeElement?.matches('input, textarea, select')) return;
   render();
 }, 60000);
@@ -480,3 +562,4 @@ document.addEventListener('visibilitychange', () => {
 if (S.closePastWeeks(state)) S.saveNow(state);
 applyTheme();
 render();
+AutoBackup.load().then(runAutoBackup, err => console.warn('Automatic backup folder unavailable', err));

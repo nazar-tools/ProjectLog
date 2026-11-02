@@ -49,6 +49,14 @@ function viewSettings() {
           <label class="field"><span class="lbl">Adjera code for overhead (meetings, admin)</span><input class="inp" id="ohcode" data-in="ohcode" value="${esc(set.overheadCode)}" placeholder="e.g. the overhead number"></label>
           <label class="field"><span class="lbl">Hours per week</span><input class="inp num" id="cap" data-in="capacity" value="${esc(set.capacity)}" inputmode="decimal"></label>
         </section>
+        <section class="card pad stack" aria-label="Timer guard">
+          <h2 class="h2">Timer guard</h2>
+          <span class="sub">Asks before a forgotten timer piles up hours. Laptop sleep is always caught.</span>
+          <div class="row wrap tight">
+            <label class="field w140"><span class="lbl">My day ends at</span><input type="time" class="inp" id="dayend" data-in="dayEnd" value="${esc(set.dayEnd)}"></label>
+            <label class="field w140"><span class="lbl">Long timer after (h)</span><input class="inp num" id="longtimer" data-in="longTimer" value="${esc(set.longTimerHours)}" inputmode="decimal"></label>
+          </div>
+        </section>
         <section class="card pad stack" aria-label="Appearance">
           <h2 class="h2">Appearance</h2>
           <div class="seg">${themes.map(([v, label]) => `<button data-a="theme" data-v="${v}" class="${set.theme === v ? 'on' : ''}">${label}</button>`).join('')}</div>
@@ -61,6 +69,7 @@ function viewSettings() {
             <label class="btn">${ic('upload', 's')}Restore or import<input type="file" accept="application/json,.json" data-in="import" class="sr"></label>
           </div>
           <span class="sub small">${set.lastBackup ? 'Last backup ' + fmtDay(set.lastBackup.slice(0, 10)) : 'Never backed up'}</span>
+          ${autoBackupSetting()}
           ${review}
           <button class="btn ghost danger self-start" data-a="reset">Erase all data on this browser</button>
         </section>
@@ -82,7 +91,10 @@ function personRow(p) {
   ).join('');
   const editor = !open ? '' : `
     <div class="stack pmedit">
-      <label class="field w280"><span class="lbl">Name</span><input class="inp" id="pn-${id}" data-in="pmName" data-id="${id}" value="${name}"></label>
+      <div class="row wrap tight">
+        <label class="field w220"><span class="lbl">Name</span><input class="inp" id="pn-${id}" data-in="pmName" data-id="${id}" value="${name}"></label>
+        <label class="field wfill"><span class="lbl">Email (for PM updates)</span><input class="inp" type="email" id="pe-${id}" data-in="pmEmail" data-id="${id}" value="${esc(p.email)}" placeholder="name@windsorengineers.com"></label>
+      </div>
       <div class="stack tight">
         <span class="lbl">Colour</span>
         <div class="row wrap tight" role="radiogroup" aria-label="Colour for ${name}">${swatches}</div>
@@ -100,4 +112,25 @@ function personRow(p) {
       </div>
       ${editor}
     </div>`;
+}
+
+function autoBackupSetting() {
+  const st = AutoBackup.status;
+  if (st === 'unsupported') return '<span class="sub small">Automatic backup to a folder needs Edge or Chrome.</span>';
+  const last = state.settings.lastAutoBackup;
+  let body;
+  if (st === 'off') {
+    body = `<span class="sub">Pick a folder once (a OneDrive folder works well) and a backup file is saved there every Friday.</span>
+      <button class="btn self-start" data-a="autoChoose">${ic('folderUp', 's')}Choose folder</button>`;
+  } else {
+    body = `
+      <span class="sub">Saving to <b>${esc(AutoBackup.folderName)}</b> every Friday.${last ? ` Last one ${fmtDay(last)}.` : ''}</span>
+      ${st === 'needs-click' ? '<span class="sub warnline">The browser wants your OK again before writing there.</span>' : ''}
+      <div class="row wrap tight">
+        ${st === 'needs-click' ? `<button class="btn pri" data-a="autoNow">Allow and back up</button>` : `<button class="btn" data-a="autoNow">Back up there now</button>`}
+        <button class="btn ghost" data-a="autoChoose">Change folder</button>
+        <button class="btn ghost danger" data-a="autoOff">Turn off</button>
+      </div>`;
+  }
+  return `<div class="stack tight autobackup"><span class="lbl">Automatic weekly backup</span>${body}</div>`;
 }

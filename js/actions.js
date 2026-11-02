@@ -19,13 +19,13 @@ function addJournal(pid) {
   el.value = '';
 }
 
-// Sets a project's hours on the timesheet's selected day as one entry. Merging or clearing
+// Sets a project's hours on one day (the timesheet's selected day unless given) as one entry. Merging or clearing
 // recorded blocks gets an undo, since the separate blocks are gone afterwards.
-function setDayHours(pid, hours) {
-  const change = S.setDayMinutes(state, pid, ui.tsDay, Math.round(hours * 60));
+function setDayHours(pid, hours, day = ui.tsDay) {
+  const change = S.setDayMinutes(state, pid, day, Math.round(hours * 60));
   const n = change.removed.length;
   const undo = () => S.undoDayEdit(state, change);
-  if (!change.added && n) showToast(`Removed ${pidLabel(pid)} from ${fmtDay(ui.tsDay)}`, undo);
+  if (!change.added && n) showToast(`Removed ${pidLabel(pid)} from ${fmtDay(day)}`, undo);
   else if (n > 1) showToast(`Merged ${n} blocks on ${pidLabel(pid)} into ${hours.toFixed(2)} h`, undo);
 }
 
@@ -36,7 +36,7 @@ function openEdit(id) {
   ui.edit = id;
   ui.pmMenu = false;
   ui.draftError = '';
-  ui.draft = { number: p.number, name: p.name, revit: p.revit, pm: p.pm, status: p.status };
+  ui.draft = { number: p.number, name: p.name, revit: p.revit, pm: p.pm, status: p.status, budget: p.budget || '' };
 }
 
 function closeEdit() {
@@ -204,12 +204,18 @@ const actions = {
       ui.draftError = 'Another project already uses ' + num;
       return;
     }
+    const budget = String(d.budget || '').trim() ? parseHours(d.budget) : 0;
+    if (Number.isNaN(budget)) {
+      ui.draftError = 'Budget should be a number of hours';
+      return;
+    }
     Object.assign(p, {
       number: num,
       name: String(d.name || '').trim() || p.name,
       revit: String(d.revit || '').trim(),
       pm: d.pm,
-      status: d.status
+      status: d.status,
+      budget: budget || ''
     });
     closeEdit();
   },
@@ -286,15 +292,18 @@ const actions = {
     ui.tsOffset += +t.dataset.v;
     ui.tsDay = null;
     ui.tsOpen = {};
+    ui.tsSel = null;
   },
   tsThisWeek: () => {
     ui.tsOffset = 0;
     ui.tsDay = null;
     ui.tsOpen = {};
+    ui.tsSel = null;
   },
   tsDay: t => {
     ui.tsDay = t.dataset.v;
     ui.tsOpen = {};
+    ui.tsSel = null;
   },
   // A cell in the week table opens that project's blocks on that day.
   tsCell: t => {
@@ -411,5 +420,156 @@ const actions = {
     ui.toast?.undo?.();
     ui.toast = null;
   },
-  closeToast: () => { ui.toast = null; }
+  closeToast: () => { ui.toast = null; },
+
+  tsView: t => {
+    ui.tsView = t.dataset.v;
+    ui.tsSel = null;
+  },
+  tlPick: t => { ui.tsSel = t.dataset.id ? { id: t.dataset.id } : { gap: t.dataset.v }; },
+  tlAssign: t => {
+    const day = ui.tsDay;
+    const key = t.dataset.v;
+    const [from, to] = key.split('-').map(Number);
+    const skips = state.gapSkips[day] || [];
+    if (t.dataset.id === 'skip') state.gapSkips[day] = [...skips, key];
+    else if (t.dataset.id === 'unskip') state.gapSkips[day] = skips.filter(k => k !== key);
+    else S.fillGap(state, t.dataset.id, day, from, to);
+    ui.tsSel = null;
+  },
+  tlSnap: () => {
+    const before = S.snapDay(state, ui.tsDay);
+    if (before.length) showToast(`Moved ${plural(before.length, 'block')} to quarter hours`, () => S.unsnapDay(state, before));
+  },
+
+  openReview: t => {
+    ui.reviewWeek = t.dataset.v || null;
+    ui.reviewDay = null;
+    location.hash = '#/review';
+  },
+  reviewWeek: t => {
+    ui.reviewWeek = S.iso(S.addDays(S.parseISO(ui.reviewWeek || lastWeekKey()), 7 * +t.dataset.v));
+    ui.reviewDay = null;
+  },
+  reviewDay: t => { ui.reviewDay = t.dataset.v; },
+  reviewFill: t => {
+    const pid = t.dataset.id;
+    setDayHours(pid, roundedHours(pid, ui.reviewDay) + parseFloat(t.dataset.v), ui.reviewDay);
+  },
+  reviewNext: t => {
+    state.adjera[t.dataset.v] = new Date().toISOString();
+    ui.reviewDay = null;
+  },
+
+  pmUpdate: t => {
+    ui.updatePm = t.dataset.id;
+    ui.updateWeek = null;
+    location.hash = '#/update';
+  },
+  updPm: t => { ui.updatePm = t.dataset.id; },
+  updWeek: t => {
+    const wk = S.iso(S.addDays(S.parseISO(ui.updateWeek || curWeek()), 7 * +t.dataset.v));
+    ui.updateWeek = wk >= curWeek() ? null : wk;
+  },
+  updToggle: t => {
+    const k = t.dataset.v;
+    state.settings[k] = !state.settings[k];
+    delete ui.updateText[updateKey()];
+  },
+  updReset: () => { delete ui.updateText[updateKey()]; },
+  updCopy: t => {
+    const text = document.getElementById('updtext').value;
+    navigator.clipboard.writeText(text).then(() => {
+      markUpdateSent(t.dataset.id);
+      showToast('Copied. Paste it into Teams.');
+      save();
+      render();
+    });
+    return false;
+  },
+  updMail: t => {
+    const pm = person(t.dataset.id);
+    const text = document.getElementById('updtext').value;
+    const subject = `Update: week of ${fmtRange(ui.updateWeek || curWeek())}`;
+    markUpdateSent(pm.id);
+    location.href = `mailto:${encodeURIComponent(pm.email || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+  },
+
+  healthVer: t => { ui.healthOpen = ui.healthOpen === t.dataset.v ? null : t.dataset.v; },
+
+  palOpen: () => {
+    ui.palette = { q: '', sel: 0 };
+    focusLater('palq');
+  },
+  palClose: (t, e) => {
+    if (e.target !== t) return false;
+    ui.palette = null;
+  },
+  palRun: t => runPaletteItem(+t.dataset.v),
+
+  guardSleepRemove: () => {
+    const { pid, from, to } = ui.sleep;
+    ui.sleep = null;
+    if (!timerOn(pid)) return;
+    S.stopTimer(state, from);
+    state.timer = { pid, start: to };
+  },
+  guardSleepKeep: () => { ui.sleep = null; },
+  guardLongKeep: () => { state.timer.askedLong = true; },
+  guardEndKeep: () => { state.timer.askedEnd = true; },
+  guardStopNow: () => { S.stopTimer(state); },
+  guardStopAt: () => {
+    const value = document.getElementById('guard-at').value;
+    if (!value) return false;
+    // The time is on the day the timer started, or today if that would be before it started.
+    let at = atTime(S.iso(new Date(state.timer.start)), value);
+    if (at <= state.timer.start) at = atTime(S.today(), value);
+    if (at <= state.timer.start || at > Date.now()) {
+      showToast('Pick a time between when the timer started and now.');
+      return;
+    }
+    S.stopTimer(state, at);
+    showToast(`Timer stopped at ${clock(at)}.`);
+  },
+
+  autoChoose: () => {
+    AutoBackup.choose()
+      .then(() => {
+        state.settings.lastAutoBackup = '';
+        return runAutoBackup();
+      })
+      .catch(err => { if (err.name !== 'AbortError') showToast(`Could not use that folder: ${err.message}`); })
+      .finally(render);
+    return false;
+  },
+  autoNow: () => {
+    const go = AutoBackup.status === 'ready' ? Promise.resolve(true) : AutoBackup.allow();
+    go.then(ok => {
+      if (!ok) return render();
+      state.settings.lastAutoBackup = '';
+      return runAutoBackup().then(() => showToast(`Backed up to ${AutoBackup.folderName}.`));
+    }).finally(render);
+    return false;
+  },
+  autoOff: () => {
+    AutoBackup.forget().finally(render);
+    return false;
+  }
 };
+
+const updateKey = () => {
+  const wk = ui.updateWeek || curWeek();
+  const pm = updatePeople(wk).find(p => p.id === ui.updatePm) || updatePeople(wk)[0];
+  return pm ? `${wk}|${pm.id}` : '';
+};
+
+function markUpdateSent(pmId) {
+  const wk = ui.updateWeek || curWeek();
+  state.updatesSent[wk] = { ...state.updatesSent[wk], [pmId]: new Date().toISOString() };
+}
+
+function runPaletteItem(i) {
+  const item = paletteItems[i];
+  ui.palette = null;
+  if (item) item.run();
+}

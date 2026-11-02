@@ -11,7 +11,10 @@ const ui = {
   viewWeek: null, planQ: '', planOffset: 0,
   projQ: '', projView: 'recent', projPm: 'all', projSort: 'last', projAll: false,
   edit: null, draft: null, draftError: '', pmMenu: false,
-  tsOffset: 0, tsDay: null, tsError: '', tsOpen: {},
+  tsOffset: 0, tsDay: null, tsError: '', tsOpen: {}, tsView: 'list', tsSel: null,
+  reviewWeek: null, reviewDay: null,
+  updateWeek: null, updatePm: null, updateText: {},
+  healthOpen: null, palette: null, sleep: null,
   openPerson: null, newPm: '', newVer: '',
   toast: null, modal: null
 };
@@ -110,6 +113,29 @@ function elapsedText() {
 }
 const timerOn = pid => !!state.timer && state.timer.pid === pid;
 
+// A full day for Adjera: the weekly hours from Settings spread over five days.
+const dayTarget = () => (parseFloat(state.settings.capacity) || 40) / 5;
+// A project's hours on one day the way Adjera gets them.
+const roundedHours = (pid, d) => S.roundQ(S.minutesFor(state, pid, d, d) / 60);
+
+// Whole weeks an open task has been sitting there; 0 for anything finished or under 3 weeks.
+function staleWeeks(it) {
+  if (it.kind !== 'task' || it.done || !it.created) return 0;
+  const weeks = Math.floor(daysBetween(it.created, S.today()) / 7);
+  return weeks >= 3 ? weeks : 0;
+}
+
+// Projects you logged time on most recently, newest first, for the timer's quick switch.
+function recentPids(exclude, n) {
+  const out = [];
+  const sorted = state.time.slice().sort((a, b) => (b.end || 0) - (a.end || 0) || b.date.localeCompare(a.date));
+  for (const t of sorted) {
+    if (t.pid !== exclude && t.pid !== 'OH' && proj(t.pid) && !out.includes(t.pid)) out.push(t.pid);
+    if (out.length === n) break;
+  }
+  return out;
+}
+
 // Time entries use 'OH' for overhead instead of a project id.
 function pidLabel(pid) {
   if (pid === 'OH') return state.settings.overheadCode || 'OVERHEAD';
@@ -188,6 +214,12 @@ const ICONS = {
   outdent: '<path d="M21 6H11"/><path d="M21 12H11"/><path d="M21 18H11"/><path d="m7 8-4 4 4 4"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
   alert: '<path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/>',
+  bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  pulse: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  command: '<path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/>',
+  folderUp: '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/><path d="M12 10v6"/><path d="m9 13 3-3 3 3"/>',
   logo: '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>'
 };
 // size: '' (20px), 's' (16px) or 'xs' (12px).
@@ -215,11 +247,19 @@ function timerBar() {
   if (!state.timer) return '';
   const p = proj(state.timer.pid);
   const label = state.timer.pid === 'OH' ? 'Overhead' : p ? `${p.number} · ${p.name}` : 'Project';
+  const switchTo = [...recentPids(state.timer.pid, 3), ...(state.timer.pid === 'OH' ? [] : ['OH'])];
+  const chips = switchTo.map(pid => {
+    const pm = proj(pid) ? person(proj(pid).pm) : null;
+    return `<button class="chip" data-a="timer" data-id="${esc(pid)}" style="${pcVar(pm)}" aria-label="Switch timer to ${esc(pidLabel(pid))}"><span class="dot"></span>${esc(pid === 'OH' ? 'Overhead' : pidLabel(pid))}</button>`;
+  }).join('');
   return `
     <div class="timerbar">
-      ${ic('clock')}
-      <span class="grow ell bold">${esc(label)}</span>
-      <span class="t num" data-elapsed>${elapsedText()}</span>
-      <button class="btn sm" data-a="stopTimer">${ic('stop', 's')}Stop</button>
+      <div class="row tight">
+        ${ic('clock')}
+        <span class="grow ell bold">${esc(label)}</span>
+        <span class="t num" data-elapsed>${elapsedText()}</span>
+        <button class="btn sm" data-a="stopTimer">${ic('stop', 's')}Stop</button>
+      </div>
+      ${chips ? `<div class="switchrow"><span class="lbl">Switch to</span>${chips}</div>` : ''}
     </div>`;
 }

@@ -4,9 +4,11 @@ importScripts('js/version.js');
 const CACHE = 'projectlog-' + self.APP_VERSION;
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/styles.css',
-  'js/version.js', 'js/seed.js', 'js/store.js', 'js/core.js',
+  'js/version.js', 'js/seed.js', 'js/store.js', 'js/core.js', 'js/backup.js',
   'js/views/outline.js', 'js/views/week.js', 'js/views/plan.js', 'js/views/projects.js',
-  'js/views/project.js', 'js/views/time.js', 'js/views/settings.js',
+  'js/views/project.js', 'js/views/time.js', 'js/views/timeline.js', 'js/views/review.js',
+  'js/views/update.js', 'js/views/health.js', 'js/views/guard.js', 'js/views/palette.js',
+  'js/views/settings.js',
   'js/actions.js', 'js/app.js',
   'icons/favicon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'
 ];

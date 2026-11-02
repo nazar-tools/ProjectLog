@@ -80,6 +80,7 @@ function projectHoursCard(p, entry, R) {
       <span class="num bignum">${fmtH(week)} <span class="sub">${planned ? `/ ${fmtH(planned)} h` : 'h'}</span></span>
       ${planned ? `<div class="meter"><i style="width:${pct(week, planned)}%"></i></div>` : ''}
       ${line('All time logged', fmtH(allTime) + ' h')}
+      ${p.budget ? line('Budget used', `${Math.round(allTime / p.budget * 100)}% of ${fmtH(p.budget)} h`) : ''}
       ${line('Weeks on your list', weeks)}
       ${p.firstSeen ? line('In OneNote', `${fmtMonth(p.firstSeen)} – ${fmtMonth(p.lastSeen)}`) : ''}
     </div>`;
@@ -105,6 +106,7 @@ function editFormHtml(p) {
       <div class="row wrap fields">
         <label class="field w150"><span class="lbl">Number (= Adjera code)</span><input class="inp num" id="ed-number" data-in="draft" data-v="number" value="${esc(d.number)}"></label>
         <label class="field wfill"><span class="lbl">Name</span><input class="inp" id="ed-name" data-in="draft" data-v="name" value="${esc(d.name)}"></label>
+        <label class="field w150"><span class="lbl">Budget hours</span><input class="inp num" id="ed-budget" data-in="draft" data-v="budget" value="${esc(d.budget)}" inputmode="decimal" placeholder="from workload app"></label>
       </div>
       <div class="row wrap fields">
         <label class="field w200">
