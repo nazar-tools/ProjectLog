@@ -71,8 +71,7 @@ function paletteHtml() {
 }
 
 function logMeeting() {
-  const entry = { id: S.uid('t'), pid: 'OH', date: S.today(), start: 0, end: 0, minutes: 30, note: 'Meeting', src: 'manual' };
-  state.time.push(entry);
+  const entry = S.addTime(state, 'OH', S.today(), 30, 'Meeting');
   showToast('Logged 30 min to Overhead for today', () => { state.time = state.time.filter(t => t.id !== entry.id); });
 }
 

@@ -37,10 +37,7 @@ function viewTime() {
     const p = proj(pid);
     const pm = p ? person(p.pm) : null;
     const e = week?.entries.find(x => x.pid === pid);
-    const cells = grid[r].map((v, i) => `
-      <td class="${todayCls(days[i])}">
-        <button class="cellbtn${v ? '' : ' empty'}" data-a="tsCell" data-v="${days[i]}" data-id="${esc(pid)}" aria-label="${esc(pidLabel(pid))}, ${S.DAYS[i]}: ${v} hours">${hrs(v)}</button>
-      </td>`).join('');
+    const cells = grid[r].map((v, i) => `<td class="${todayCls(days[i])}">${hoursCell(pid, days[i], v, minutes)}</td>`).join('');
     return `
       <tr>
         <td><span class="row tight" style="${pcVar(pm)}"><span class="dot"></span><b>${esc(pidLabel(pid))}</b><span class="sub ell maxw">${esc(pidName(pid))}</span></span></td>
@@ -143,6 +140,22 @@ function dayCard(d, i, total) {
     </button>`;
 }
 
+// A typeable hours cell for one project on one day, as on the Timesheet table and the Monday
+// review. The number is what Adjera gets; changing it trims or stretches that day's blocks.
+// While that project's timer is running the cell is read-only.
+function hoursCell(pid, d, v, minutes) {
+  const label = `${esc(pidLabel(pid))}, ${WD[S.parseISO(d).getDay()]}`;
+  if (timerOn(pid) && liveMinutes(pid, d) > 0) {
+    return `<span class="cellro num" title="Timer running">${v.toFixed(2)}</span>`;
+  }
+  const entries = state.time.filter(x => x.pid === pid && x.date === d);
+  const raw = minutes(pid, d);
+  const flag = raw % 15 ? `${fmtDuration(raw)} in ${plural(entries.length, 'block')}` : '';
+  return `<input class="cellin num${flag ? ' flag' : ''}" id="hc-${esc(pid)}-${d}" data-in="dayCell" data-id="${esc(pid)}" data-v="${d}"
+    value="${v ? v.toFixed(2) : ''}" placeholder="–" inputmode="decimal"${flag ? ` title="Rounded from ${flag}"` : ''}
+    aria-label="${label}${flag ? `, rounded from ${flag}` : ''}">`;
+}
+
 // One row per project for the selected day. The number is what goes to Adjera: type a new
 // value or use the steppers, and that day's blocks for the project become one entry.
 function dayDetail({ pids, grid, minutes, dayTotals, di }) {
@@ -153,7 +166,7 @@ function dayDetail({ pids, grid, minutes, dayTotals, di }) {
   const status = state.adjera[day]
     ? '<span class="tag good">Entered in Adjera</span>'
     : dayTotals[di] ? '<span class="tag warn">Not in Adjera yet</span>' : '';
-  const messy = groups.some(g => !timerOn(g.pid) && (g.entries.length > 1 || g.raw % 15));
+  const messy = groups.some(g => !timerOn(g.pid) && g.raw % 15);
 
   const viewSeg = `
     <div class="seg viewseg" role="group" aria-label="Show the day as">
@@ -173,7 +186,7 @@ function dayDetail({ pids, grid, minutes, dayTotals, di }) {
       ${messy ? `
         <div class="row wrap tight">
           <button class="btn sm" data-a="roundDay">${ic('check', 's')}Round every project to ¼ h</button>
-          <span class="sub small">Turns each project’s blocks into one entry. You can undo it.</span>
+          <span class="sub small">Trims or stretches each project’s last block. You can undo it.</span>
         </div>` : ''}`}`;
 }
 
@@ -216,7 +229,7 @@ function blockRow(x, pids) {
     ? `<input type="time" class="inp timein" id="es-${id}" data-in="entryStart" data-id="${id}" value="${timeValue(x.start)}" aria-label="Start">
        <span class="sub">–</span>
        <input type="time" class="inp timein" id="ee-${id}" data-in="entryEnd" data-id="${id}" value="${timeValue(x.end)}" aria-label="End">`
-    : `<span class="sub srcl">${x.src === 'adjusted' ? 'Adjusted' : 'Added by hand'}</span>`;
+    : '<span class="sub srcl">No clock time</span>';
   const moveTo = pids.map(pid => `<option value="${esc(pid)}"${pid === x.pid ? ' selected' : ''}>${esc(pidLabel(pid))}</option>`).join('');
   return `
     <div class="tsblock">

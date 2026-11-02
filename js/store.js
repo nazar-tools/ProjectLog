@@ -90,6 +90,13 @@
     for (const k of ['people', 'items', 'journal', 'time']) if (!Array.isArray(s[k])) s[k] = [];
     for (const k of ['projects', 'weeks', 'adjera', 'gapSkips', 'updatesSent']) if (!s[k] || typeof s[k] !== 'object') s[k] = {};
     s.seedInfo = s.seedInfo || { flags: {}, needsReview: [] };
+    // Before v1.7, hand-entered and adjusted time had no clock time. Give each one a free slot
+    // so every entry shows on the timeline.
+    for (const t of s.time) {
+      if (t.start) continue;
+      t.start = freeSlot(s, t.date, t.minutes * 60000, t);
+      t.end = t.start + t.minutes * 60000;
+    }
     // Colours end up inside style attributes, so only palette names are allowed through.
     for (const p of s.people) if (!COLORS.includes(p.color)) p.color = 'gray';
     return s;
@@ -325,23 +332,64 @@
   // Adjera takes quarter hours.
   const roundQ = hours => Math.round(hours * 4) / 4;
 
-  // Replaces one project's time on one day with a single entry of the given length, so a day of
-  // scattered timer blocks becomes one clean number. Returns what undoDayEdit needs.
-  function setDayMinutes(s, pid, date, minutes) {
-    const removed = s.time.filter(t => t.pid === pid && t.date === date);
-    s.time = s.time.filter(t => !removed.includes(t));
-    let added = null;
-    if (minutes > 0) {
-      const notes = [...new Set(removed.map(t => t.note).filter(Boolean))];
-      added = { id: uid('t'), pid, date, start: 0, end: 0, minutes: Math.round(minutes), note: notes.join('; '), src: 'adjusted' };
-      s.time.push(added);
+  // First start time from `from` (8 am by default) where a block of `ms` fits between the
+  // day's other blocks; after the last block if nothing fits earlier.
+  function freeSlot(s, date, ms, ignore = null, from = 8 * 3600000) {
+    const day = parseISO(date).getTime();
+    const blocks = s.time.filter(t => t.date === date && t.start && t !== ignore).sort((a, b) => a.start - b.start);
+    let at = day + from;
+    for (const b of blocks) {
+      if (b.end <= at) continue;
+      if (b.start - at >= ms) return at;
+      at = Math.max(at, b.end);
     }
-    return { removed, added };
+    return Math.min(at, day + 24 * 3600000 - ms);
   }
 
-  function undoDayEdit(s, { removed, added }) {
-    if (added) s.time = s.time.filter(t => t.id !== added.id);
-    s.time.push(...removed);
+  // Changes one project's time on one day to `minutes` without losing its place on the
+  // timeline: less time trims the latest blocks; more time stretches the last block if there's
+  // room after it, otherwise adds a block in the day's first free slot. Returns what
+  // undoDayEdit needs.
+  function setDayMinutes(s, pid, date, minutes) {
+    const mine = s.time.filter(t => t.pid === pid && t.date === date).sort((a, b) => a.start - b.start);
+    const before = mine.map(t => ({ ...t }));
+    let delta = Math.round(minutes) - mine.reduce((a, t) => a + t.minutes, 0);
+    for (let i = mine.length - 1; i >= 0 && delta < 0; i--) {
+      const b = mine[i];
+      const cut = Math.min(b.minutes, -delta);
+      b.minutes -= cut;
+      b.end = b.start + b.minutes * 60000;
+      delta += cut;
+    }
+    s.time = s.time.filter(t => t.minutes > 0);
+    if (delta > 0) {
+      const ms = delta * 60000;
+      const last = mine.filter(t => t.minutes > 0).pop();
+      const next = last && s.time
+        .filter(t => t.date === date && t !== last && t.start >= last.end)
+        .reduce((m, t) => Math.min(m, t.start), parseISO(date).getTime() + 24 * 3600000);
+      if (last && next - last.end >= ms) {
+        last.end += ms;
+        last.minutes += delta;
+      } else {
+        const start = freeSlot(s, date, ms);
+        s.time.push({ id: uid('t'), pid, date, start, end: start + ms, minutes: delta, note: '', src: 'manual' });
+      }
+    }
+    return { pid, date, before };
+  }
+
+  function undoDayEdit(s, { pid, date, before }) {
+    s.time = s.time.filter(t => !(t.pid === pid && t.date === date)).concat(before.map(t => ({ ...t })));
+  }
+
+  // Adds time by hand: into the day's first free slot, so it sits on the timeline like a timer block.
+  function addTime(s, pid, date, minutes, note = '') {
+    const ms = Math.round(minutes) * 60000;
+    const start = freeSlot(s, date, ms);
+    const entry = { id: uid('t'), pid, date, start, end: start + ms, minutes: Math.round(minutes), note, src: 'manual' };
+    s.time.push(entry);
+    return entry;
   }
 
   // Stretches of at least five minutes between the timed blocks of a day, in time order.
@@ -391,17 +439,15 @@
     }
   }
 
-  // Snaps every project on a day to its nearest quarter hour, one entry each. Time that would
-  // round to zero is left alone so it never disappears without you deciding.
+  // Snaps every project on a day to its nearest quarter hour by trimming or stretching its
+  // last block. Time that would round to zero is left alone so it never disappears unasked.
   function roundDay(s, date) {
     const pids = [...new Set(s.time.filter(t => t.date === date).map(t => t.pid))];
     return pids
       .map(pid => {
         const minutes = minutesFor(s, pid, date, date);
         const rounded = roundQ(minutes / 60) * 60;
-        const single = s.time.filter(t => t.pid === pid && t.date === date).length === 1;
-        if (rounded === 0 || (rounded === minutes && single)) return null;
-        return setDayMinutes(s, pid, date, rounded);
+        return rounded === 0 || rounded === minutes ? null : setDayMinutes(s, pid, date, rounded);
       })
       .filter(Boolean);
   }
@@ -413,7 +459,7 @@
     saveError: () => saveError, onSaveStatus: null,
     peekWeek, ensureWeek, inWeek, deadlineDate, itemsAsOf, closePastWeeks,
     itemsFor, addItem, subtree, moveItem, nudgeItem, deleteItem, restoreItems,
-    minutesFor, startTimer, stopTimer, roundQ, setDayMinutes, undoDayEdit, roundDay,
+    minutesFor, startTimer, stopTimer, roundQ, setDayMinutes, undoDayEdit, roundDay, freeSlot, addTime,
     dayGaps, fillGap, snapDay, unsnapDay
   };
   window.Store = Store;

@@ -28,17 +28,7 @@ function viewReview() {
     </div>`;
   const rows = pids.map((pid, r) => {
     const pm = proj(pid) ? person(proj(pid).pm) : null;
-    const cells = days.map((d, i) => {
-      const entries = state.time.filter(x => x.pid === pid && x.date === d);
-      const raw = minutes(pid, d);
-      const flag = entries.length > 1 || raw % 15 ? `${fmtDuration(raw)} in ${plural(entries.length, 'block')}` : '';
-      const id = `rv-${esc(pid)}-${d}`;
-      return `
-        <span class="${i === di ? 'cur' : ''}">
-          <input class="cellin num${flag ? ' flag' : ''}" id="${id}" data-in="reviewCell" data-id="${esc(pid)}" data-v="${d}" value="${grid[r][i] ? grid[r][i].toFixed(2) : ''}" placeholder="–" inputmode="decimal"
-            ${flag ? `title="Rounded from ${flag}"` : ''} aria-label="${esc(pidLabel(pid))}, ${S.DAYS[i]}${flag ? `, rounded from ${flag}` : ''}">
-        </span>`;
-    }).join('');
+    const cells = days.map((d, i) => `<span class="${i === di ? 'cur' : ''}">${hoursCell(pid, d, grid[r][i], minutes)}</span>`).join('');
     return `
       <div class="gr">
         <span class="row tight minw0" style="${pcVar(pm)}"><span class="dot"></span><b class="num">${esc(pidLabel(pid))}</b><span class="sub ell">${esc(pidName(pid))}</span></span>
@@ -73,7 +63,7 @@ function viewReview() {
     <div class="cols">
       <section class="col-main">
         <div class="card clip scrollx"><div class="reviewgrid">${head}${rows}${foot}</div></div>
-        <span class="sub small row tight"><span class="dot pend"></span>Rounded from timer blocks. Type a new number to replace that project’s blocks for the day.</span>
+        <span class="sub small row tight"><span class="dot pend"></span>Rounded from timer blocks. Type a new number to trim or stretch that project’s blocks for the day.</span>
       </section>
       <aside class="col-side">
         ${allDone ? reviewDoneCard(wk, weekTotal) : reviewDayCard(pids, grid, minutes, dayTotals, days, di, target)}

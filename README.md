@@ -18,7 +18,7 @@ js/views/plan.js         Plan week
 js/views/projects.js     Projects list
 js/views/project.js      one project, its edit form, and the New project dialog
 js/views/time.js         Timesheet and Copy for Adjera
-js/views/timeline.js     Timesheet's timeline view with untracked gaps
+js/views/timeline.js     Timesheet timeline: drag to move/resize/draw blocks, untracked gaps
 js/views/review.js       Monday review: enter last week in Adjera day by day
 js/views/update.js       weekly update for a PM (Teams / Outlook)
 js/views/health.js       hours against budget, tasks carried over, Revit versions

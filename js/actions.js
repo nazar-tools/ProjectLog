@@ -19,14 +19,15 @@ function addJournal(pid) {
   el.value = '';
 }
 
-// Sets a project's hours on one day (the timesheet's selected day unless given) as one entry. Merging or clearing
-// recorded blocks gets an undo, since the separate blocks are gone afterwards.
+// Sets a project's hours on one day (the timesheet's selected day unless given). Blocks are
+// trimmed or stretched in place; when a block disappears in the process there's an undo.
 function setDayHours(pid, hours, day = ui.tsDay) {
   const change = S.setDayMinutes(state, pid, day, Math.round(hours * 60));
-  const n = change.removed.length;
-  const undo = () => S.undoDayEdit(state, change);
-  if (!change.added && n) showToast(`Removed ${pidLabel(pid)} from ${fmtDay(day)}`, undo);
-  else if (n > 1) showToast(`Merged ${n} blocks on ${pidLabel(pid)} into ${hours.toFixed(2)} h`, undo);
+  const left = state.time.filter(t => t.pid === pid && t.date === day).length;
+  if (left < change.before.length) {
+    const what = left ? `Trimmed ${pidLabel(pid)} to ${hours.toFixed(2)} h` : `Removed ${pidLabel(pid)}`;
+    showToast(`${what} on ${fmtDay(day)}`, () => S.undoDayEdit(state, change));
+  }
 }
 
 const timeEntry = id => state.time.find(x => x.id === id);
@@ -305,12 +306,6 @@ const actions = {
     ui.tsOpen = {};
     ui.tsSel = null;
   },
-  // A cell in the week table opens that project's blocks on that day.
-  tsCell: t => {
-    ui.tsDay = t.dataset.v;
-    ui.tsOpen = { [t.dataset.id]: true };
-    setTimeout(() => document.getElementById('tt-' + t.dataset.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
-  },
   tsOpen: t => { ui.tsOpen[t.dataset.id] = !ui.tsOpen[t.dataset.id]; },
   tsStep: t => {
     const now = S.roundQ(S.minutesFor(state, t.dataset.id, ui.tsDay, ui.tsDay) / 60);
@@ -344,7 +339,7 @@ const actions = {
       ui.tsError = 'Enter hours, e.g. 1.5 or 1:30';
       return;
     }
-    state.time.push({ id: S.uid('t'), pid, date: ui.tsDay, start: 0, end: 0, minutes: Math.round(hours * 60), note, src: 'manual' });
+    S.addTime(state, pid, ui.tsDay, hours * 60, note);
   },
   copyDay: t => {
     const text = t.dataset.v;
@@ -427,6 +422,7 @@ const actions = {
     ui.tsSel = null;
   },
   tlPick: t => { ui.tsSel = t.dataset.id ? { id: t.dataset.id } : { gap: t.dataset.v }; },
+  tlCancel: () => { ui.tsSel = null; },
   tlAssign: t => {
     const day = ui.tsDay;
     const key = t.dataset.v;

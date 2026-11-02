@@ -338,10 +338,8 @@ table.ts tfoot td.today { background: var(--accent-soft); }
 .notein { flex: 1 1 90px; }
 .movein { flex: 0 0 auto; width: auto; max-width: 112px; }
 .srcl { font-weight: 600; }
-table.ts td:has(.cellbtn) { padding: 4px 6px; }
-.cellbtn { width: 100%; padding: 5px 6px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; font-variant-numeric: tabular-nums; text-align: right; cursor: pointer; }
-.cellbtn:hover { background: var(--accent-soft); color: var(--accent-strong); }
-.cellbtn.empty { color: var(--baseline); }
+table.ts td:has(.cellin), table.ts td:has(.cellro) { padding: 4px 6px; }
+.cellro { display: block; padding: 0 8px; text-align: right; color: var(--accent-strong); font-weight: 600; }
 .copybox { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; line-height: 1.7; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface-2); border: 1px solid var(--border); white-space: pre; overflow-x: auto; }
 .erow { display: flex; align-items: center; gap: 10px; padding: 9px 14px; }
 
@@ -407,9 +405,16 @@ table.ts td:has(.cellbtn) { padding: 4px 6px; }
 .tick { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; }
 .tick:first-child { transform: none; }
 .tick:last-child { transform: translateX(-100%); }
-.tltrack { position: relative; height: 64px; border-radius: 10px; background: var(--surface-2); }
+.tltrack { position: relative; height: 64px; border-radius: 10px; background: var(--surface-2); touch-action: none; user-select: none; cursor: crosshair; }
 .tlblock, .tlgap { position: absolute; top: 6px; bottom: 6px; display: flex; align-items: center; padding: 0 6px; border: 0; border-radius: 8px; overflow: hidden; cursor: pointer; }
-.tlblock { background: var(--pc); color: #fff; font-size: 11.5px; font-weight: 800; white-space: nowrap; }
+.tlblock { background: var(--pc); color: #fff; font-size: 11.5px; font-weight: 800; white-space: nowrap; cursor: grab; }
+.tlblock:active { cursor: grabbing; }
+.tlblock .edge { position: absolute; top: 0; bottom: 0; width: 9px; cursor: ew-resize; }
+.tlblock .edge.s { left: 0; }
+.tlblock .edge.e { right: 0; }
+.tlblock:hover .edge::after, .tlblock.sel .edge::after { content: ""; position: absolute; top: 30%; bottom: 30%; left: 3px; width: 3px; border-radius: 2px; background: rgba(255,255,255,.75); }
+.tlrange { position: absolute; top: 6px; bottom: 6px; border: 2px dashed var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent-soft) 70%, transparent); pointer-events: none; }
+.tltip { position: absolute; top: -28px; transform: translateX(-50%); padding: 3px 8px; border-radius: 6px; background: var(--text-primary); color: var(--page); font-size: 12px; font-weight: 700; white-space: nowrap; pointer-events: none; z-index: 2; }
 .tlblock.live { cursor: default; background-image: repeating-linear-gradient(135deg, transparent 0 8px, rgba(255,255,255,.28) 8px 16px); }
 .tlgap { border: 1.5px dashed var(--warning); background: repeating-linear-gradient(135deg, var(--warn-bg) 0 6px, transparent 6px 12px); }
 .tlgap.skipped { border-color: var(--baseline); background: transparent; }
@@ -430,7 +435,7 @@ table.ts td:has(.cellbtn) { padding: 4px 6px; }
 .gr { display: grid; grid-template-columns: minmax(170px, 2fr) repeat(5, minmax(0, 1fr)) minmax(0, 1fr); align-items: stretch; min-height: 46px; border-bottom: 1px solid var(--gridline); }
 .gr > * { display: flex; align-items: center; justify-content: flex-end; padding: 0 10px; }
 .gr > *:first-child { justify-content: flex-start; padding-left: 14px; }
-.gr > span:has(.cellin) { padding: 4px; }
+.gr > span:has(.cellin), .gr > span:has(.cellro) { padding: 4px; }
 .gr .cur { background: var(--accent-soft); }
 .gr.hd { min-height: 40px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 .colhead { border: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }

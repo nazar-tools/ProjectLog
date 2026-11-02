@@ -410,10 +410,14 @@ document.addEventListener('change', e => {
     case 'dayEnd':
       if (t.value) state.settings.dayEnd = t.value;
       break;
-    case 'reviewCell': {
+    case 'dayCell': {
       const hours = t.value.trim() ? parseHours(t.value) : 0;
-      if (hours >= 0) setDayHours(id, S.roundQ(hours), t.dataset.v);
-      else showToast('Type hours like 1.5 or 1:30');
+      if (hours >= 0) {
+        setDayHours(id, S.roundQ(hours), t.dataset.v);
+        ui.tsDay = t.dataset.v;
+      } else {
+        showToast('Type hours like 1.5 or 1:30');
+      }
       render();
       break;
     }
@@ -549,7 +553,7 @@ setInterval(() => {
   const closed = S.closePastWeeks(state);
   if (closed) save();
   if (!closed && !state.timer) return;
-  if (document.hidden || dragId || ui.modal || ui.pmMenu || ui.palette) return;
+  if (document.hidden || dragId || tlDrag || ui.modal || ui.pmMenu || ui.palette) return;
   if (document.activeElement?.matches('input, textarea, select')) return;
   render();
 }, 60000);
