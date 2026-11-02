@@ -322,6 +322,40 @@
   // Adjera takes quarter hours.
   const roundQ = hours => Math.round(hours * 4) / 4;
 
+  // Replaces one project's time on one day with a single entry of the given length, so a day of
+  // scattered timer blocks becomes one clean number. Returns what undoDayEdit needs.
+  function setDayMinutes(s, pid, date, minutes) {
+    const removed = s.time.filter(t => t.pid === pid && t.date === date);
+    s.time = s.time.filter(t => !removed.includes(t));
+    let added = null;
+    if (minutes > 0) {
+      const notes = [...new Set(removed.map(t => t.note).filter(Boolean))];
+      added = { id: uid('t'), pid, date, start: 0, end: 0, minutes: Math.round(minutes), note: notes.join('; '), src: 'adjusted' };
+      s.time.push(added);
+    }
+    return { removed, added };
+  }
+
+  function undoDayEdit(s, { removed, added }) {
+    if (added) s.time = s.time.filter(t => t.id !== added.id);
+    s.time.push(...removed);
+  }
+
+  // Snaps every project on a day to its nearest quarter hour, one entry each. Time that would
+  // round to zero is left alone so it never disappears without you deciding.
+  function roundDay(s, date) {
+    const pids = [...new Set(s.time.filter(t => t.date === date).map(t => t.pid))];
+    return pids
+      .map(pid => {
+        const minutes = minutesFor(s, pid, date, date);
+        const rounded = roundQ(minutes / 60) * 60;
+        const single = s.time.filter(t => t.pid === pid && t.date === date).length === 1;
+        if (rounded === 0 || (rounded === minutes && single)) return null;
+        return setDayMinutes(s, pid, date, rounded);
+      })
+      .filter(Boolean);
+  }
+
   const Store = {
     KEY, DAYS, PALETTE, COLORS, MAX_LEVEL,
     uid, iso, parseISO, addDays, mondayOf, weekKey, weekRange, today, clampLevel,
@@ -329,7 +363,7 @@
     saveError: () => saveError, onSaveStatus: null,
     peekWeek, ensureWeek, inWeek, deadlineDate, itemsAsOf, closePastWeeks,
     itemsFor, addItem, subtree, moveItem, nudgeItem, deleteItem, restoreItems,
-    minutesFor, startTimer, stopTimer, roundQ
+    minutesFor, startTimer, stopTimer, roundQ, setDayMinutes, undoDayEdit, roundDay
   };
   window.Store = Store;
 })();

@@ -11,7 +11,7 @@ const ui = {
   viewWeek: null, planQ: '', planOffset: 0,
   projQ: '', projView: 'recent', projPm: 'all', projSort: 'last', projAll: false,
   edit: null, draft: null, draftError: '', pmMenu: false,
-  tsOffset: 0, tsDay: null, tsError: '',
+  tsOffset: 0, tsDay: null, tsError: '', tsOpen: {},
   openPerson: null, newPm: '', newVer: '',
   toast: null, modal: null
 };
@@ -61,6 +61,32 @@ function clock(ms) {
   const d = new Date(ms);
   const h = d.getHours();
   return `${(h + 11) % 12 + 1}:${String(d.getMinutes()).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
+}
+// "1 h 47 min", "35 min", "2 h".
+function fmtDuration(minutes) {
+  const m = Math.round(minutes);
+  const h = Math.floor(m / 60);
+  if (!h) return `${m} min`;
+  return m % 60 ? `${h} h ${m % 60} min` : `${h} h`;
+}
+// Hours as typed: "1.5", "1,5", "1:30" and "90m" all mean an hour and a half. NaN if unreadable.
+function parseHours(text) {
+  const t = String(text).trim().toLowerCase().replace(',', '.');
+  const hm = t.match(/^(\d+):(\d{1,2})$/);
+  if (hm) return +hm[1] + +hm[2] / 60;
+  const mins = t.match(/^(\d+(?:\.\d+)?)\s*m(in)?$/);
+  if (mins) return +mins[1] / 60;
+  return /^\d*\.?\d+\s*h?$/.test(t) ? parseFloat(t) : NaN;
+}
+// "HH:MM" for a time input, and back to a timestamp on a given day.
+const timeValue = ms => {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+function atTime(dateIso, hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const d = S.parseISO(dateIso);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m).getTime();
 }
 const daysBetween = (a, b) => Math.round((S.parseISO(b) - S.parseISO(a)) / 86400000);
 

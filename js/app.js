@@ -71,11 +71,14 @@ function saveBanner() {
 }
 
 // Redraws the whole page, then puts the cursor back where it was.
+let rendering = false;
 function render() {
   const a = document.activeElement;
   const focus = a?.id ? { id: a.id, start: a.selectionStart, end: a.selectionEnd } : null;
   const r = route();
+  rendering = true;
   document.getElementById('root').innerHTML = shell(VIEWS[r.name](r), r);
+  rendering = false;
   if (!focus) return;
   const el = document.getElementById(focus.id);
   if (!el) return;
@@ -126,6 +129,11 @@ document.addEventListener('keydown', e => {
         document.getElementById('txt-' + id)?.focus();
       }
     }
+    return;
+  }
+
+  if (t.classList?.contains('timein') && e.key === 'Enter') {
+    t.blur();
     return;
   }
 
@@ -201,8 +209,16 @@ function commitEdit(input) {
 }
 
 // Leaving an item's edit box saves it. The delay lets a click on another item land first.
+// Start and end times on the timesheet also apply on leaving the box, since typing a time
+// passes through half-finished values.
 document.addEventListener('focusout', e => {
   const t = e.target;
+  if (rendering) return;
+  if (t.classList?.contains('timein')) {
+    if (editTimeEntry(timeEntry(t.dataset.id), t)) save();
+    setTimeout(render);
+    return;
+  }
   if (t.dataset?.k !== 'editItem' || ui.editItem !== t.dataset.id) return;
   setTimeout(() => {
     if (ui.editItem === t.dataset.id) commitEdit(t);
@@ -327,6 +343,24 @@ document.addEventListener('change', e => {
     case 'np':
       if (ui.modal) ui.modal.draft[t.dataset.v] = t.type === 'checkbox' ? t.checked : t.value;
       return;
+    case 'tsWeekSel':
+      ui.tsOffset = Math.round(daysBetween(curWeek(), t.value) / 7);
+      ui.tsDay = null;
+      ui.tsOpen = {};
+      render();
+      return;
+    case 'tsTotal': {
+      const hours = parseHours(t.value);
+      if (hours >= 0) setDayHours(id, S.roundQ(hours));
+      else showToast('Type hours like 1.5 or 1:30');
+      render();
+      break;
+    }
+    case 'entryHours':
+    case 'entryNote':
+    case 'entryPid':
+      if (!editTimeEntry(timeEntry(id), t)) return;
+      break;
     case 'import':
       if (t.files[0]) importFile(t.files[0]);
       return;
@@ -335,6 +369,43 @@ document.addEventListener('change', e => {
   }
   save();
 });
+
+// Edits one recorded block from the timesheet. Returns false when nothing changed.
+function editTimeEntry(x, input) {
+  if (!x) return false;
+  const field = input.dataset.in;
+  if (field === 'entryNote') {
+    x.note = input.value.trim();
+    return true;
+  }
+  if (field === 'entryPid') {
+    x.pid = input.value;
+    render();
+    return true;
+  }
+  if (field === 'entryHours') {
+    const hours = parseHours(input.value);
+    const ok = hours > 0;
+    if (ok) {
+      x.minutes = Math.round(hours * 60);
+      if (x.start) x.end = x.start + x.minutes * 60000;
+    } else {
+      showToast('Type hours like 1.5 or 1:30');
+    }
+    render();
+    return ok;
+  }
+  // entryStart / entryEnd
+  if (!input.value) return false;
+  const start = field === 'entryStart' ? atTime(x.date, input.value) : x.start;
+  const end = field === 'entryEnd' ? atTime(x.date, input.value) : x.end;
+  if (end <= start) {
+    showToast('The end time has to be after the start.');
+    return false;
+  }
+  Object.assign(x, { start, end, minutes: Math.round((end - start) / 60000) });
+  return true;
+}
 
 // A file with a projects list is a OneNote seed and gets merged in. Anything else is treated
 // as a full backup and replaces what's here, after asking.

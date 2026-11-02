@@ -19,6 +19,18 @@ function addJournal(pid) {
   el.value = '';
 }
 
+// Sets a project's hours on the timesheet's selected day as one entry. Merging or clearing
+// recorded blocks gets an undo, since the separate blocks are gone afterwards.
+function setDayHours(pid, hours) {
+  const change = S.setDayMinutes(state, pid, ui.tsDay, Math.round(hours * 60));
+  const n = change.removed.length;
+  const undo = () => S.undoDayEdit(state, change);
+  if (!change.added && n) showToast(`Removed ${pidLabel(pid)} from ${fmtDay(ui.tsDay)}`, undo);
+  else if (n > 1) showToast(`Merged ${n} blocks on ${pidLabel(pid)} into ${hours.toFixed(2)} h`, undo);
+}
+
+const timeEntry = id => state.time.find(x => x.id === id);
+
 function openEdit(id) {
   const p = proj(id);
   ui.edit = id;
@@ -273,8 +285,35 @@ const actions = {
   tsWeek: t => {
     ui.tsOffset += +t.dataset.v;
     ui.tsDay = null;
+    ui.tsOpen = {};
   },
-  tsDay: t => { ui.tsDay = t.dataset.v; },
+  tsThisWeek: () => {
+    ui.tsOffset = 0;
+    ui.tsDay = null;
+    ui.tsOpen = {};
+  },
+  tsDay: t => {
+    ui.tsDay = t.dataset.v;
+    ui.tsOpen = {};
+  },
+  // A cell in the week table opens that project's blocks on that day.
+  tsCell: t => {
+    ui.tsDay = t.dataset.v;
+    ui.tsOpen = { [t.dataset.id]: true };
+    setTimeout(() => document.getElementById('tt-' + t.dataset.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+  },
+  tsOpen: t => { ui.tsOpen[t.dataset.id] = !ui.tsOpen[t.dataset.id]; },
+  tsStep: t => {
+    const now = S.roundQ(S.minutesFor(state, t.dataset.id, ui.tsDay, ui.tsDay) / 60);
+    setDayHours(t.dataset.id, Math.max(0, now + 0.25 * +t.dataset.v));
+  },
+  roundDay: () => {
+    const changes = S.roundDay(state, ui.tsDay);
+    if (!changes.length) return;
+    showToast(`Rounded ${plural(changes.length, 'project')} to quarter hours`, () => {
+      changes.slice().reverse().forEach(c => S.undoDayEdit(state, c));
+    });
+  },
   delTime: t => {
     const i = state.time.findIndex(x => x.id === t.dataset.id);
     if (i === -1) return;
@@ -283,7 +322,7 @@ const actions = {
   },
   addTime: () => {
     const typed = document.getElementById('ts-proj').value.trim();
-    const hours = parseFloat(document.getElementById('ts-hours').value.replace(',', '.'));
+    const hours = parseHours(document.getElementById('ts-hours').value);
     const note = document.getElementById('ts-note').value.trim();
     const number = typed.split(/\s+/)[0];
     const pid = /^overhead/i.test(typed) ? 'OH' : Object.values(state.projects).find(p => p.number === number)?.id;
@@ -293,7 +332,7 @@ const actions = {
       return;
     }
     if (!(hours > 0)) {
-      ui.tsError = 'Enter hours, e.g. 1.5';
+      ui.tsError = 'Enter hours, e.g. 1.5 or 1:30';
       return;
     }
     state.time.push({ id: S.uid('t'), pid, date: ui.tsDay, start: 0, end: 0, minutes: Math.round(hours * 60), note, src: 'manual' });
