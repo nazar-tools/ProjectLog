@@ -141,6 +141,12 @@ const actions = {
     const extra = under.length ? ` and ${plural(under.length, 'sub-item')}` : '';
     showToast(`Deleted “${first.text.slice(0, 40)}”${extra}`, () => S.restoreItems(state, deleted));
   },
+  tagMenu: t => { ui.tagMenu = ui.tagMenu === t.dataset.id ? null : t.dataset.id; },
+  setTag: t => {
+    const it = itemById(t.dataset.id);
+    if (it) it.tag = t.dataset.v;
+    ui.tagMenu = null;
+  },
   showDone: t => { ui.showDone[t.dataset.id] = !ui.showDone[t.dataset.id]; },
 
   seedWeek: () => {
@@ -328,18 +334,22 @@ const actions = {
     const typed = document.getElementById('ts-proj').value.trim();
     const hours = parseHours(document.getElementById('ts-hours').value);
     const note = document.getElementById('ts-note').value.trim();
+    const from = document.getElementById('ts-from').value;
     const number = typed.split(/\s+/)[0];
-    const pid = /^overhead/i.test(typed) ? 'OH' : Object.values(state.projects).find(p => p.number === number)?.id;
+    const pid = /^overhead/i.test(typed) ? 'OH'
+      : /^(break|lunch)/i.test(typed) ? 'BREAK'
+      : Object.values(state.projects).find(p => p.number === number)?.id;
     ui.tsError = '';
     if (!pid) {
-      ui.tsError = 'Pick a project from the list (or type Overhead)';
+      ui.tsError = 'Pick a project from the list (or type Overhead or Break)';
       return;
     }
     if (!(hours > 0)) {
       ui.tsError = 'Enter hours, e.g. 1.5 or 1:30';
       return;
     }
-    S.addTime(state, pid, ui.tsDay, hours * 60, note);
+    const entry = S.addTime(state, pid, ui.tsDay, hours * 60, note, from ? atTime(ui.tsDay, from) : null);
+    ui.tsSel = { id: entry.id };
   },
   copyDay: t => {
     const text = t.dataset.v;
@@ -423,14 +433,20 @@ const actions = {
   },
   tlPick: t => { ui.tsSel = t.dataset.id ? { id: t.dataset.id } : { gap: t.dataset.v }; },
   tlCancel: () => { ui.tsSel = null; },
+  tlLunch: () => {
+    const day = ui.tsDay;
+    const from = atTime(day, state.settings.lunchFrom);
+    const len = atTime(day, state.settings.lunchTo) - from;
+    if (len <= 0) return;
+    const entry = S.addTime(state, 'BREAK', day, len / 60000, '', from);
+    entry.start = landingSpot(entry, from);
+    entry.end = entry.start + len;
+  },
   tlAssign: t => {
     const day = ui.tsDay;
     const key = t.dataset.v;
     const [from, to] = key.split('-').map(Number);
-    const skips = state.gapSkips[day] || [];
-    if (t.dataset.id === 'skip') state.gapSkips[day] = [...skips, key];
-    else if (t.dataset.id === 'unskip') state.gapSkips[day] = skips.filter(k => k !== key);
-    else S.fillGap(state, t.dataset.id, day, from, to);
+    S.fillGap(state, t.dataset.id, day, from, to);
     ui.tsSel = null;
   },
   tlSnap: () => {

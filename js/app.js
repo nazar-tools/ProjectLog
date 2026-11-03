@@ -116,6 +116,11 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', app
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-a]');
   const fn = t && actions[t.dataset.a];
+  // An open tag menu closes on any click outside it.
+  if (ui.tagMenu && !e.target.closest('.tagmenu') && t?.dataset.a !== 'tagMenu') {
+    ui.tagMenu = null;
+    if (!fn) render();
+  }
   if (!fn) return;
   if (t.tagName === 'A') e.preventDefault();
   if (fn(t, e) === false) return;
@@ -148,9 +153,39 @@ document.addEventListener('keydown', e => {
       return;
     }
   }
-  if (e.key === 'Escape' && (ui.modal || ui.palette)) {
+  if (e.key === 'Escape' && (ui.modal || ui.palette || ui.tagMenu)) {
     ui.modal = null;
     ui.palette = null;
+    ui.tagMenu = null;
+    render();
+    return;
+  }
+
+  // OneNote-style keys on a task or note: Ctrl+1 task/note, Ctrl+3/5/7/8/9 tags, Ctrl+0 no tag.
+  // In the add box they set the tag for the next item.
+  const onItem = t.classList?.contains('txt') || t.dataset?.k === 'editItem';
+  if ((e.ctrlKey || e.metaKey) && /^[0-9]$/.test(e.key) && (onItem || t.dataset?.k === 'add')) {
+    const tag = e.key === '0' ? '' : TAG_KEYS[e.key];
+    if (tag === undefined && e.key !== '1') return;
+    e.preventDefault();
+    if (t.dataset.k === 'add') {
+      if (e.key === '1') return;
+      ui.addTag[t.dataset.id] = tag && ui.addTag[t.dataset.id] !== tag ? tag : '';
+      const typed = t.value;
+      render();
+      document.getElementById(t.id).value = typed;
+      return;
+    }
+    const it = itemById(t.dataset.id);
+    if (!it) return;
+    if (t.dataset.k === 'editItem') it.text = t.value.trim() || it.text;
+    if (e.key === '1') {
+      it.kind = it.kind === 'task' ? 'note' : 'task';
+      it.done = false;
+    } else {
+      it.tag = tag && it.tag !== tag ? tag : '';
+    }
+    save();
     render();
     return;
   }
@@ -197,8 +232,9 @@ document.addEventListener('keydown', e => {
       document.getElementById(t.id).value = typed;
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (S.addItem(state, pid, t.value, ui.addLevel[pid] || 0)) {
+      if (S.addItem(state, pid, t.value, ui.addLevel[pid] || 0, ui.addTag[pid])) {
         t.value = '';
+        ui.addTag[pid] = '';
         save();
         render();
       }
@@ -409,6 +445,10 @@ document.addEventListener('change', e => {
       return;
     case 'dayEnd':
       if (t.value) state.settings.dayEnd = t.value;
+      break;
+    case 'lunchFrom':
+    case 'lunchTo':
+      state.settings[t.dataset.in] = t.value;
       break;
     case 'dayCell': {
       const hours = t.value.trim() ? parseHours(t.value) : 0;

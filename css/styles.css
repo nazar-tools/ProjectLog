@@ -476,6 +476,29 @@ textarea.updtext { min-height: 380px; font-size: 14.5px; line-height: 1.55; }
 .palrow:hover, .palrow.on { background: var(--accent-soft); color: var(--accent-strong); }
 .palfoot { gap: 14px; padding: 10px 16px; border-top: 1px solid var(--gridline); }
 
+/* Breaks and tags */
+.tlblock.brk { background: repeating-linear-gradient(135deg, var(--surface-1) 0 6px, var(--gridline) 6px 12px); color: var(--text-secondary); box-shadow: inset 0 0 0 1px var(--baseline); }
+.tlblock.brk .edge::after { background: var(--muted); }
+.legend.brk, .brkrow, tr.brkrow td { color: var(--muted); }
+.btn.brk .dot, .chip.brk .dot { background: var(--baseline); }
+.tg { flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; font-size: 12px; font-weight: 900; line-height: 1; }
+.tg .ic { width: 15px; height: 15px; }
+.tg-important { color: var(--c-orange); }
+.tg-important .ic { fill: currentColor; }
+.tg-question { color: var(--c-purple); font-size: 15px; }
+.tg-critical { color: var(--critical); font-size: 16px; }
+.tg-idea { color: var(--c-amber); }
+.tg-p1, .tg-p2, .tg-p3 { border: 1.5px solid var(--pc); color: var(--pc); background: color-mix(in srgb, var(--pc) 14%, transparent); font-size: 11px; }
+.tg-p1 { --pc: var(--c-orange); }
+.tg-p2 { --pc: var(--c-blue); }
+.tg-p3 { --pc: var(--c-green); }
+.item.hl .txt, .item.hl .ro { background: rgba(255, 221, 0, .42); border-radius: 4px; }
+.item { position: relative; }
+.tagmenu { left: auto; right: 8px; top: 100%; width: 250px; }
+.tgslot { display: inline-grid; place-items: center; width: 20px; flex: none; }
+.hlswatch { width: 16px; height: 10px; border-radius: 3px; background: rgba(255, 221, 0, .8); }
+.addline .tg { margin-top: 0; }
+
 /* Narrow (side panel) */
 @media (max-width: 639px) {
   body { font-size: 14.5px; }

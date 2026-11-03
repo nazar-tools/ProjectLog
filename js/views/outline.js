@@ -16,7 +16,8 @@ function outlineHtml(pid) {
       ${leftOffLine(pid)}
       ${items.map(itemRow).join('')}
       <div class="addline" style="padding-left:${18 + level * 22}px">
-        <input id="add-${esc(pid)}" data-k="add" data-id="${esc(pid)}" placeholder="Add task…  – for a note · Tab indents" aria-label="Add a task or note">
+        ${tagMark(ui.addTag[pid])}
+        <input id="add-${esc(pid)}" data-k="add" data-id="${esc(pid)}" placeholder="Add task…  – note · ! critical · Tab indents" aria-label="Add a task or note. Ctrl+3, 5, 8 or 9 tags it.">
         ${level ? `<span class="lvl">level ${level}</span>` : ''}
       </div>
       ${hidden > 0 ? toggle(`Show ${hidden} finished`) : olderDone ? toggle('Hide older finished') : ''}
@@ -34,17 +35,20 @@ function itemRow(it) {
     : `<span class="txt" id="txt-${id}" data-a="editItem" data-id="${id}" tabindex="0" role="button" aria-label="Edit: ${text}">${text}</span>`;
 
   return `
-    <div class="item${it.done ? ' done' : ''}" data-item="${id}" style="padding-left:${24 + it.level * 22}px">
+    <div class="item${it.done ? ' done' : ''}${it.tag === 'remember' ? ' hl' : ''}" data-item="${id}" style="padding-left:${24 + it.level * 22}px">
       <span class="grip" draggable="true" data-drag="${id}" title="Drag to reorder (or Alt + ↑/↓)">${ic('grip', 'xs')}</span>
       ${check}
+      ${tagMark(it.tag)}
       ${label}
       ${staleWeeks(it) ? `<span class="tag warn stale" title="Open for ${staleWeeks(it)} weeks">${staleWeeks(it)} wk</span>` : ''}
       <span class="acts">
         <button data-a="outdent" data-id="${id}" title="Outdent" aria-label="Outdent">${ic('outdent', 'xs')}</button>
         <button data-a="indent" data-id="${id}" title="Indent" aria-label="Indent">${ic('indent', 'xs')}</button>
-        <button data-a="kind" data-id="${id}" title="${it.kind === 'task' ? 'Make it a note' : 'Make it a task'}" aria-label="Switch task or note">${ic('list', 'xs')}</button>
+        <button data-a="tagMenu" data-id="${id}" title="Tag (Ctrl+3, 5, 7, 8, 9)" aria-label="Tag" aria-expanded="${ui.tagMenu === it.id}">${ic('tag', 'xs')}</button>
+        <button data-a="kind" data-id="${id}" title="${it.kind === 'task' ? 'Make it a note' : 'Make it a task'} (Ctrl+1)" aria-label="Switch task or note">${ic('list', 'xs')}</button>
         <button data-a="delItem" data-id="${id}" title="Delete" aria-label="Delete">${ic('x', 'xs')}</button>
       </span>
+      ${ui.tagMenu === it.id ? tagMenu(it) : ''}
     </div>`;
 }
 
@@ -59,4 +63,17 @@ function leftOffLine(pid) {
       <input id="lo-${esc(pid)}" data-in="leftOff" data-id="${esc(pid)}" value="${esc(lo?.text)}" placeholder="Where I left off… (shows here next time)" aria-label="Where I left off">
       ${when ? `<span class="sub small">${when}</span>` : ''}
     </label>`;
+}
+
+function tagMenu(it) {
+  const rows = TAGS.map(([tag, label, key]) => `
+    <button class="opt${it.tag === tag ? ' sel' : ''}" data-a="setTag" data-id="${esc(it.id)}" data-v="${tag}">
+      <span class="tgslot">${tag === 'remember' ? '<span class="hlswatch"></span>' : tagMark(tag)}</span>
+      <span class="grow">${label}</span>${key ? `<span class="kbd">Ctrl ${key}</span>` : ''}
+    </button>`).join('');
+  return `
+    <div class="menu tagmenu" role="menu" aria-label="Tags">
+      ${rows}
+      <button class="opt" data-a="setTag" data-id="${esc(it.id)}" data-v=""><span class="tgslot"></span><span class="grow">Remove tag</span><span class="kbd">Ctrl 0</span></button>
+    </div>`;
 }

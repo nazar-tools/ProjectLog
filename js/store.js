@@ -11,7 +11,7 @@
   const DEFAULT_SETTINGS = {
     revitVersions: ['RVT27', 'RVT26', 'RVT25', 'RVT24'],
     overheadCode: '', capacity: 40, group: 'deadline', pm: 'all', compact: false, theme: 'auto', lastBackup: null,
-    dayEnd: '18:00', longTimerHours: 3, myName: '', updHours: true, updOpen: true, updNext: true, lastAutoBackup: ''
+    dayEnd: '18:00', longTimerHours: 3, lunchFrom: '12:00', lunchTo: '12:30', myName: '', updHours: true, updOpen: true, updNext: true, lastAutoBackup: ''
   };
 
   const uid = (prefix = 'x') => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -52,7 +52,7 @@
     const s = {
       v: 1, created: new Date().toISOString(),
       people: (seed.people || []).map(seedPerson),
-      projects: {}, items: [], journal: [], weeks: {}, time: [], timer: null, adjera: {}, scratch: '',
+      projects: {}, items: [], trash: [], journal: [], weeks: {}, time: [], timer: null, adjera: {}, scratch: '',
       gapSkips: {}, updatesSent: {},
       settings: { ...DEFAULT_SETTINGS, revitVersions: (seed.revitVersions || DEFAULT_SETTINGS.revitVersions).slice() },
       seedInfo: seedInfo(seed, false)
@@ -87,7 +87,7 @@
   // Fills in anything an older version or a hand-edited backup left out.
   function migrate(s) {
     s.settings = { ...DEFAULT_SETTINGS, ...s.settings };
-    for (const k of ['people', 'items', 'journal', 'time']) if (!Array.isArray(s[k])) s[k] = [];
+    for (const k of ['people', 'items', 'journal', 'time', 'trash']) if (!Array.isArray(s[k])) s[k] = [];
     for (const k of ['projects', 'weeks', 'adjera', 'gapSkips', 'updatesSent']) if (!s[k] || typeof s[k] !== 'object') s[k] = {};
     s.seedInfo = s.seedInfo || { flags: {}, needsReview: [] };
     // Before v1.7, hand-entered and adjusted time had no clock time. Give each one a free slot
@@ -97,6 +97,14 @@
       t.start = freeSlot(s, t.date, t.minutes * 60000, t);
       t.end = t.start + t.minutes * 60000;
     }
+    // Gaps marked "not work" in v1.6-1.7 become Break blocks, which do the same job.
+    for (const [date, keys] of Object.entries(s.gapSkips || {})) {
+      for (const k of keys) {
+        const [from, to] = k.split('-').map(Number);
+        s.time.push({ id: uid('t'), pid: 'BREAK', date, start: from, end: to, minutes: Math.round((to - from) / 60000), note: '', src: 'break' });
+      }
+    }
+    s.gapSkips = {};
     // Colours end up inside style attributes, so only palette names are allowed through.
     for (const p of s.people) if (!COLORS.includes(p.color)) p.color = 'gray';
     return s;
@@ -188,10 +196,16 @@
   // Tasks and notes as they stood at the end of a week.
   function itemsAsOf(s, pid, key) {
     const { startIso, endIso } = weekRange(key);
-    return itemsFor(s, pid)
+    // Items deleted after that week still belong to it: put each back under the item it sat below.
+    const list = itemsFor(s, pid);
+    for (const x of s.trash.filter(t => t.pid === pid && t.deletedAt > endIso)) {
+      const at = list.findIndex(i => i.id === x.anchorId);
+      list.splice(at === -1 ? list.length : at + 1, 0, x);
+    }
+    return list
       .filter(i => (i.created || '') <= endIso && !(i.done && i.doneAt && i.doneAt < startIso))
       .map(i => ({
-        text: i.text, kind: i.kind, level: i.level, doneAt: i.doneAt || '',
+        text: i.text, kind: i.kind, level: i.level, tag: i.tag || '', doneAt: i.doneAt || '',
         done: !!(i.done && (!i.doneAt || i.doneAt <= endIso))
       }));
   }
@@ -205,27 +219,36 @@
       if (key >= current || w.closed) continue;
       const { startIso, endIso } = weekRange(key);
       const pids = new Set(w.entries.map(e => e.pid));
-      for (const t of s.time) if (t.pid !== 'OH' && t.date >= startIso && t.date <= endIso) pids.add(t.pid);
+      for (const t of s.time) if (t.pid !== 'OH' && t.pid !== 'BREAK' && t.date >= startIso && t.date <= endIso) pids.add(t.pid);
       const items = {};
       for (const pid of pids) items[pid] = itemsAsOf(s, pid, key);
       w.closed = { on: today(), items };
       closed++;
     }
+    // Once every week a deleted item could belong to is frozen, the copy isn't needed.
+    const cutoff = iso(addDays(new Date(), -70));
+    s.trash = s.trash.filter(x => x.deletedAt >= cutoff);
     return closed;
   }
 
   const itemsFor = (s, pid) => s.items.filter(i => i.pid === pid);
 
   // A leading "-" makes it a note instead of a task.
-  function addItem(s, pid, text, level) {
+  function addItem(s, pid, text, level, tag = '') {
     let t = text.trim();
     let kind = 'task';
     if (/^[-–—]\s*/.test(t)) {
       kind = 'note';
       t = t.replace(/^[-–—]\s*/, '');
     }
+    // "! " critical, "* " important, "? " question, as quick ways to tag while typing.
+    const prefix = t.match(/^([!*?])\s+/);
+    if (prefix) t = t.slice(prefix[0].length);
     if (!t) return null;
-    const it = { id: uid('i'), pid, text: t, kind, level: clampLevel(level || 0), done: false, doneAt: '', created: today() };
+    const it = {
+      id: uid('i'), pid, text: t, kind, level: clampLevel(level || 0), done: false, doneAt: '', created: today(),
+      tag: tag || (prefix ? { '!': 'critical', '*': 'important', '?': 'question' }[prefix[1]] : '')
+    };
     const last = s.items.map(x => x.pid).lastIndexOf(pid);
     s.items.splice(last === -1 ? s.items.length : last + 1, 0, it);
     return it;
@@ -281,12 +304,17 @@
     const list = itemsFor(s, it.pid);
     const block = subtree(list, it);
     const anchor = list[list.indexOf(it) - 1];
+    const anchorId = anchor ? anchor.id : null;
     s.items = s.items.filter(x => !block.includes(x));
-    return { block, anchorId: anchor ? anchor.id : null, pid: it.pid };
+    // Kept aside so earlier weeks can still show them; see itemsAsOf.
+    s.trash.push(...block.map(x => ({ ...x, deletedAt: today(), anchorId })));
+    return { block, anchorId, pid: it.pid };
   }
 
   // Puts deleted items back after the item that was above them, wherever that is now.
   function restoreItems(s, { block, anchorId, pid }) {
+    const ids = block.map(x => x.id);
+    s.trash = s.trash.filter(x => !ids.includes(x.id));
     let at = s.items.findIndex(x => x.id === anchorId);
     if (at !== -1) at++;
     else at = s.items.findIndex(x => x.pid === pid);
@@ -296,7 +324,8 @@
 
   function minutesFor(s, pid, fromIso, toIso) {
     let total = 0;
-    for (const t of s.time) if ((pid === null || t.pid === pid) && t.date >= fromIso && t.date <= toIso) total += t.minutes;
+    // pid null means every project and overhead; breaks are only counted when asked for by name.
+    for (const t of s.time) if ((pid === null ? t.pid !== 'BREAK' : t.pid === pid) && t.date >= fromIso && t.date <= toIso) total += t.minutes;
     return total;
   }
 
@@ -383,10 +412,11 @@
     s.time = s.time.filter(t => !(t.pid === pid && t.date === date)).concat(before.map(t => ({ ...t })));
   }
 
-  // Adds time by hand: into the day's first free slot, so it sits on the timeline like a timer block.
-  function addTime(s, pid, date, minutes, note = '') {
+  // Adds time by hand at a given start, or in the day's first free slot, so it sits on the
+  // timeline like a timer block.
+  function addTime(s, pid, date, minutes, note = '', at = null) {
     const ms = Math.round(minutes) * 60000;
-    const start = freeSlot(s, date, ms);
+    const start = at ?? freeSlot(s, date, ms);
     const entry = { id: uid('t'), pid, date, start, end: start + ms, minutes: Math.round(minutes), note, src: 'manual' };
     s.time.push(entry);
     return entry;
@@ -442,7 +472,7 @@
   // Snaps every project on a day to its nearest quarter hour by trimming or stretching its
   // last block. Time that would round to zero is left alone so it never disappears unasked.
   function roundDay(s, date) {
-    const pids = [...new Set(s.time.filter(t => t.date === date).map(t => t.pid))];
+    const pids = [...new Set(s.time.filter(t => t.date === date && t.pid !== 'BREAK').map(t => t.pid))];
     return pids
       .map(pid => {
         const minutes = minutesFor(s, pid, date, date);

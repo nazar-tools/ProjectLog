@@ -1,6 +1,7 @@
 // Timesheet › Timeline: the selected day drawn on a clock face, with the stretches nobody logged.
-// Drag a block to move it, drag its edges to stretch or squish it, drag across empty track to
-// draw a new one. Click a gap to give it to a project or mark it as a break.
+// Drag a block anywhere to move it (it lands in the nearest free spot), drag its edges to
+// stretch or squish it, drag across empty track to draw a new one. Click a gap to give it to a
+// project or to Break, which blocks out the time without counting it.
 
 const HOUR = 3600000;
 const SNAP = 5 * 60000;
@@ -39,10 +40,11 @@ function dayTimeline(day, pids) {
     const code = b.pid === 'OH' ? 'OH' : pidLabel(b.pid);
     const label = b.end - b.start >= 45 * 60000 ? esc(code) : '';
     const aria = `${esc(code)} ${clock(b.start)} to ${b.live ? 'now (timer running)' : clock(b.end)}`;
-    if (b.live) return `<span class="tlblock live" style="${place(b.start, b.end)};${pcVar(pm)}" title="${aria}">${label}</span>`;
+    const brk = b.pid === 'BREAK' ? ' brk' : '';
+    if (b.live) return `<span class="tlblock live${brk}" style="${place(b.start, b.end)};${pcVar(pm)}" title="${aria}">${label}</span>`;
     const on = sel?.id === b.id;
     return `
-      <button class="tlblock${on ? ' sel' : ''}" id="tl-${esc(b.id)}" style="${place(b.start, b.end)};${pcVar(pm)}" data-a="tlPick" data-id="${esc(b.id)}"
+      <button class="tlblock${brk}${on ? ' sel' : ''}" id="tl-${esc(b.id)}" style="${place(b.start, b.end)};${pcVar(pm)}" data-a="tlPick" data-id="${esc(b.id)}"
         aria-label="${aria}. Arrow keys move it, Shift+arrows change the end." title="${aria}">
         <span class="edge s" data-edge="start"></span>${label}<span class="edge e" data-edge="end"></span>
       </button>`;
@@ -54,11 +56,13 @@ function dayTimeline(day, pids) {
   }).join('');
   const range = sel?.range ? sel.range.split('-').map(Number) : null;
 
-  const legend = [...new Set(all.map(b => b.pid))].map(pid => {
+  const legend = [...new Set(all.map(b => b.pid))].sort((a, b) => (a === 'BREAK') - (b === 'BREAK')).map(pid => {
     const pm = proj(pid) ? person(proj(pid).pm) : null;
     const h = S.roundQ((S.minutesFor(state, pid, day, day) + liveMinutes(pid, day)) / 60);
-    return `<span class="row tight legend" style="${pcVar(pm)}"><span class="dot"></span><b class="num">${esc(pid === 'OH' ? 'Overhead' : pidLabel(pid))}</b><span class="sub num">${h.toFixed(2)} h</span></span>`;
+    const note = pid === 'BREAK' ? ' · not counted' : '';
+    return `<span class="row tight legend${pid === 'BREAK' ? ' brk' : ''}" style="${pcVar(pm)}"><span class="dot"></span><b class="num">${esc(pidShort(pid))}</b><span class="sub num">${h.toFixed(2)} h${note}</span></span>`;
   }).join('');
+  const lunch = !all.some(b => b.pid === 'BREAK') && state.settings.lunchFrom && state.settings.lunchTo;
   const untracked = sum(gaps.filter(g => !g.skipped), g => g.to - g.from) / 60000;
   const unsnapped = blocks.some(b => b.start % (15 * 60000) || b.end % (15 * 60000));
 
@@ -73,9 +77,10 @@ function dayTimeline(day, pids) {
         ${legend}
         ${untracked >= 1 ? `<span class="row tight legend warnline"><span class="dot pend"></span>Untracked ${fmtDuration(untracked)}</span>` : ''}
         <span class="grow"></span>
+        ${lunch ? `<button class="btn sm" data-a="tlLunch">${ic('coffee', 's')}Lunch ${clock(atTime(day, state.settings.lunchFrom))} – ${clock(atTime(day, state.settings.lunchTo))}</button>` : ''}
         ${unsnapped ? `<button class="btn sm" data-a="tlSnap" title="Move every block's start and end to the nearest quarter hour">Snap times to ¼ h</button>` : ''}
       </div>
-      <span class="sub small">Drag a block to move it, drag its edges to change its length, or drag across empty space to add time.</span>
+      <span class="sub small">Drag a block anywhere to move it, drag its edges to change its length, or drag across empty space to add time.</span>
     </section>
     ${timelinePanel(sel, gaps, blocks, pids)}`;
 }
@@ -85,9 +90,10 @@ function timelinePanel(sel, gaps, blocks, pids) {
     const b = blocks.find(x => x.id === sel.id);
     return `<div class="card clip list">${blockRow(b, pids)}</div>`;
   }
-  const choices = k => pids.map(pid => {
+  const choices = k => ['BREAK', ...pids.filter(pid => pid !== 'BREAK')].map(pid => {
     const pm = proj(pid) ? person(proj(pid).pm) : null;
-    return `<button class="btn sm" data-a="tlAssign" data-id="${esc(pid)}" data-v="${k}" style="${pcVar(pm)}"><span class="dot"></span>${esc(pid === 'OH' ? 'Overhead' : pidLabel(pid))}</button>`;
+    const label = pid === 'BREAK' ? 'Break (not counted)' : pidShort(pid);
+    return `<button class="btn sm${pid === 'BREAK' ? ' brk' : ''}" data-a="tlAssign" data-id="${esc(pid)}" data-v="${k}" style="${pcVar(pm)}"><span class="dot"></span>${esc(label)}</button>`;
   }).join('');
 
   if (sel?.range) {
@@ -104,23 +110,13 @@ function timelinePanel(sel, gaps, blocks, pids) {
   }
   const k = `${g.from}-${g.to}`;
   const mins = (g.to - g.from) / 60000;
-  if (g.skipped) {
-    return `
-      <div class="card pad stack">
-        <b>Break ${clock(g.from)} – ${clock(g.to)} · ${fmtDuration(mins)}</b>
-        <div><button class="btn sm" data-a="tlAssign" data-id="unskip" data-v="${k}">Not a break after all</button></div>
-      </div>`;
-  }
   return `
     <div class="card pad stack">
       <div class="stack gap1">
         <b>Untracked ${clock(g.from)} – ${clock(g.to)} · ${fmtDuration(mins)}</b>
-        <span class="sub">${mins > 90 ? 'Long gap, maybe lunch. Mark it as a break, or give it to a project.' : 'Probably still on the work before or after it. Give it to:'}</span>
+        <span class="sub">${mins > 45 ? 'Long gap, maybe lunch. Mark it as a break, or give it to a project.' : 'Probably still on the work before or after it. Give it to:'}</span>
       </div>
-      <div class="row wrap tight">
-        <button class="btn sm" data-a="tlAssign" data-id="skip" data-v="${k}"><span class="dot nopm"></span>Not work (break)</button>
-        ${choices(k)}
-      </div>
+      <div class="row wrap tight">${choices(k)}</div>
     </div>`;
 }
 
@@ -133,6 +129,30 @@ function tlBounds(entry) {
     lo: others.filter(t => t.end <= entry.start).reduce((m, t) => Math.max(m, t.end), day),
     hi: others.filter(t => t.start >= entry.end).reduce((m, t) => Math.min(m, t.start), day + 24 * HOUR)
   };
+}
+
+// Where a moved block lands: the free spot nearest to where you're dragging it, so it can jump
+// over lunch or other blocks to the end of the day.
+function landingSpot(entry, want) {
+  const day = S.parseISO(entry.date).getTime();
+  const len = entry.end - entry.start;
+  const others = state.time.filter(t => t.date === entry.date && t !== entry && t.start).sort((a, b) => a.start - b.start);
+  if (state.timer && liveMinutes(null, entry.date) > 0) others.push({ start: Math.max(state.timer.start, day), end: Date.now() });
+  others.sort((a, b) => a.start - b.start);
+  const free = [];
+  let at = day;
+  for (const b of others) {
+    if (b.start > at) free.push([at, b.start]);
+    at = Math.max(at, b.end);
+  }
+  if (at < day + 24 * HOUR) free.push([at, day + 24 * HOUR]);
+  let best = null;
+  for (const [a, b] of free) {
+    if (b - a < len) continue;
+    const start = clamp(want, a, b - len);
+    if (best === null || Math.abs(start - want) < Math.abs(best - want)) best = start;
+  }
+  return best ?? entry.start;
 }
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -177,7 +197,7 @@ document.addEventListener('pointermove', e => {
   const shift = (e.clientX - d.x0) * d.msPerPx;
   if (d.mode === 'move') {
     const len = d.entry.end - d.entry.start;
-    d.start = clamp(snapTime(d.entry.start + shift), d.lo, d.hi - len);
+    d.start = landingSpot(d.entry, snapTime(d.entry.start + shift));
     d.end = d.start + len;
   } else if (d.mode === 'start') {
     d.start = clamp(snapTime(d.entry.start + shift), d.lo, d.entry.end - SNAP);
@@ -233,12 +253,12 @@ document.addEventListener('keydown', e => {
   const x = timeEntry(el.dataset.id);
   if (!x) return;
   const step = e.key === 'ArrowLeft' ? -SNAP : SNAP;
-  const { lo, hi } = tlBounds(x);
+  const { hi } = tlBounds(x);
   if (e.shiftKey) {
     moveEntry(x, x.start, clamp(x.end + step, x.start + SNAP, hi));
   } else {
     const len = x.end - x.start;
-    const start = clamp(x.start + step, lo, hi - len);
+    const start = landingSpot(x, x.start + step);
     moveEntry(x, start, start + len);
   }
   render();

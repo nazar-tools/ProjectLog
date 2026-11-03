@@ -7,7 +7,7 @@ let state = S.load();
 
 // Screen-only state: what's open, typed into a search box, and so on. Never saved.
 const ui = {
-  fold: {}, addLevel: {}, editItem: null, showDone: {},
+  fold: {}, addLevel: {}, addTag: {}, tagMenu: null, editItem: null, showDone: {},
   viewWeek: null, planQ: '', planOffset: 0,
   projQ: '', projView: 'recent', projPm: 'all', projSort: 'last', projAll: false,
   edit: null, draft: null, draftError: '', pmMenu: false,
@@ -130,21 +130,26 @@ function recentPids(exclude, n) {
   const out = [];
   const sorted = state.time.slice().sort((a, b) => (b.end || 0) - (a.end || 0) || b.date.localeCompare(a.date));
   for (const t of sorted) {
-    if (t.pid !== exclude && t.pid !== 'OH' && proj(t.pid) && !out.includes(t.pid)) out.push(t.pid);
+    if (t.pid !== exclude && proj(t.pid) && !out.includes(t.pid)) out.push(t.pid);
     if (out.length === n) break;
   }
   return out;
 }
 
-// Time entries use 'OH' for overhead instead of a project id.
+// Time entries use 'OH' for overhead and 'BREAK' for lunch and breaks instead of a project id.
+// Overhead counts toward your hours; a break only blocks out the time.
 function pidLabel(pid) {
   if (pid === 'OH') return state.settings.overheadCode || 'OVERHEAD';
+  if (pid === 'BREAK') return 'Break';
   return proj(pid)?.number || '?';
 }
 function pidName(pid) {
   if (pid === 'OH') return 'Overhead · meetings, admin';
+  if (pid === 'BREAK') return 'Lunch and breaks · not counted';
   return proj(pid)?.name || 'Deleted project';
 }
+// Short name for buttons and chips.
+const pidShort = pid => (pid === 'OH' ? 'Overhead' : pidLabel(pid));
 
 function lastOnList(pid) {
   return Object.keys(state.weeks).filter(k => S.inWeek(state, k, pid)).sort().pop() || null;
@@ -220,6 +225,10 @@ const ICONS = {
   pulse: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
   command: '<path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/>',
   folderUp: '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/><path d="M12 10v6"/><path d="m9 13 3-3 3 3"/>',
+  star: '<path d="M12 2.5 15 8.6l6.7 1-4.9 4.7 1.2 6.7L12 17.8 6 21l1.2-6.7-4.9-4.7 6.7-1z"/>',
+  bulb: '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/>',
+  tag: '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/>',
+  coffee: '<path d="M17 8h1a4 4 0 0 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z"/><path d="M6 2v2"/><path d="M10 2v2"/><path d="M14 2v2"/>',
   logo: '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>'
 };
 // size: '' (20px), 's' (16px) or 'xs' (12px).
@@ -246,11 +255,11 @@ function revitDatalist(id) {
 function timerBar() {
   if (!state.timer) return '';
   const p = proj(state.timer.pid);
-  const label = state.timer.pid === 'OH' ? 'Overhead' : p ? `${p.number} · ${p.name}` : 'Project';
-  const switchTo = [...recentPids(state.timer.pid, 3), ...(state.timer.pid === 'OH' ? [] : ['OH'])];
+  const label = p ? `${p.number} · ${p.name}` : pidShort(state.timer.pid);
+  const switchTo = [...recentPids(state.timer.pid, 3), 'OH', 'BREAK'].filter(pid => pid !== state.timer.pid);
   const chips = switchTo.map(pid => {
     const pm = proj(pid) ? person(proj(pid).pm) : null;
-    return `<button class="chip" data-a="timer" data-id="${esc(pid)}" style="${pcVar(pm)}" aria-label="Switch timer to ${esc(pidLabel(pid))}"><span class="dot"></span>${esc(pid === 'OH' ? 'Overhead' : pidLabel(pid))}</button>`;
+    return `<button class="chip${pid === 'BREAK' ? ' brk' : ''}" data-a="timer" data-id="${esc(pid)}" style="${pcVar(pm)}" aria-label="Switch timer to ${esc(pidShort(pid))}"><span class="dot"></span>${esc(pidShort(pid))}</button>`;
   }).join('');
   return `
     <div class="timerbar">
@@ -262,4 +271,29 @@ function timerBar() {
       </div>
       ${chips ? `<div class="switchrow"><span class="lbl">Switch to</span>${chips}</div>` : ''}
     </div>`;
+}
+
+// Tags on tasks and notes, after OneNote's. Ctrl+number works on a selected item; the
+// numbers match OneNote's where it has them.
+const TAGS = [
+  ['important', 'Important', '3'],
+  ['question', 'Question', '5'],
+  ['remember', 'Remember for later', '7'],
+  ['p1', 'Priority 1', '8'],
+  ['p2', 'Priority 2', '9'],
+  ['p3', 'Priority 3', ''],
+  ['critical', 'Critical', ''],
+  ['idea', 'Idea', '']
+];
+const TAG_KEYS = Object.fromEntries(TAGS.filter(t => t[2]).map(t => [t[2], t[0]]));
+
+function tagMark(tag) {
+  switch (tag) {
+    case 'important': return `<span class="tg tg-important" title="Important">${ic('star', 'xs')}</span>`;
+    case 'question': return '<span class="tg tg-question" title="Question">?</span>';
+    case 'critical': return '<span class="tg tg-critical" title="Critical">!</span>';
+    case 'idea': return `<span class="tg tg-idea" title="Idea">${ic('bulb', 'xs')}</span>`;
+    case 'p1': case 'p2': case 'p3': return `<span class="tg tg-${tag}" title="Priority ${tag[1]}">${tag[1]}</span>`;
+    default: return '';
+  }
 }

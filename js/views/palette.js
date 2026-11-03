@@ -7,6 +7,7 @@ function paletteActions() {
   const lastWeek = lastWeekKey();
   return [
     { label: 'Log a 30 min meeting to Overhead', hint: 'adds to today', words: 'meeting overhead log 30', run: logMeeting },
+    { label: state.timer?.pid === 'BREAK' ? 'End break' : 'Start a break', hint: 'lunch, not counted', words: 'break lunch pause', run: () => actions.timer({ dataset: { id: 'BREAK' } }) },
     { label: 'Copy today for Adjera', hint: fmtDay(S.today()), words: 'copy adjera today timesheet', run: copyToday },
     { label: 'Review and enter last week', hint: fmtRange(lastWeek), words: 'review last week adjera monday', run: () => actions.openReview({ dataset: { v: lastWeek } }) },
     { label: 'Plan next week', hint: 'Plan week', words: 'plan next week', run: () => { ui.planOffset = 1; location.hash = '#/plan'; } },
@@ -77,7 +78,7 @@ function logMeeting() {
 
 function copyToday() {
   const d = S.today();
-  const pids = [...new Set(state.time.filter(t => t.date === d).map(t => t.pid))];
+  const pids = [...new Set(state.time.filter(t => t.date === d && t.pid !== 'BREAK').map(t => t.pid))];
   const text = pids.map(pid => [pidLabel(pid), roundedHours(pid, d)]).filter(([, h]) => h > 0)
     .map(([code, h]) => `${code}\t${h.toFixed(2)}`).join('\n');
   if (!text) {

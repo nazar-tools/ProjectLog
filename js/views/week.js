@@ -330,7 +330,7 @@ function pastOutlineHtml(pid, wk) {
       ? `<input type="checkbox" class="chk" disabled${i.done ? ' checked' : ''} aria-label="${i.done ? 'Done' : 'Open'}: ${esc(i.text)}">`
       : '<span class="notemark" aria-hidden="true">–</span>';
     const day = i.done && i.doneAt ? `<span class="sub doneday">${WD[S.parseISO(i.doneAt).getDay()]}</span>` : '';
-    return `<div class="item${i.done ? ' done' : ''}" style="padding-left:${24 + i.level * 22}px">${mark}<span class="ro">${esc(i.text)}</span>${day}</div>`;
+    return `<div class="item${i.done ? ' done' : ''}${i.tag === 'remember' ? ' hl' : ''}" style="padding-left:${24 + i.level * 22}px">${mark}${tagMark(i.tag)}<span class="ro">${esc(i.text)}</span>${day}</div>`;
   }).join('');
   const journal = !notes.length ? '' : `
     <div class="pastnotes">

@@ -12,12 +12,15 @@ function timesheetData(wk) {
   const pids = [];
   const addPid = pid => { if (!pids.includes(pid)) pids.push(pid); };
   (week?.entries || []).filter(e => proj(e.pid)).forEach(e => addPid(e.pid));
-  state.time.filter(x => x.pid !== 'OH' && x.date >= R.startIso && x.date <= R.endIso).forEach(x => addPid(x.pid));
-  if (state.timer && state.timer.pid !== 'OH' && days.some(d => liveMinutes(state.timer.pid, d) > 0)) addPid(state.timer.pid);
+  const special = pid => pid === 'OH' || pid === 'BREAK';
+  state.time.filter(x => !special(x.pid) && x.date >= R.startIso && x.date <= R.endIso).forEach(x => addPid(x.pid));
+  if (state.timer && !special(state.timer.pid) && days.some(d => liveMinutes(state.timer.pid, d) > 0)) addPid(state.timer.pid);
   pids.push('OH');
   const minutes = (pid, d) => S.minutesFor(state, pid, d, d) + liveMinutes(pid, d);
+  // Breaks get a row of their own when there are any, but never count toward a total.
+  if (days.some(d => minutes('BREAK', d) > 0)) pids.push('BREAK');
   const grid = pids.map(pid => days.map(d => S.roundQ(minutes(pid, d) / 60)));
-  const dayTotals = days.map((d, i) => sum(grid, row => row[i]));
+  const dayTotals = days.map((d, i) => sum(grid.filter((row, r) => pids[r] !== 'BREAK'), row => row[i]));
   return { days, week, pids, minutes, grid, dayTotals };
 }
 
@@ -39,7 +42,7 @@ function viewTime() {
     const e = week?.entries.find(x => x.pid === pid);
     const cells = grid[r].map((v, i) => `<td class="${todayCls(days[i])}">${hoursCell(pid, days[i], v, minutes)}</td>`).join('');
     return `
-      <tr>
+      <tr${pid === 'BREAK' ? ' class="brkrow"' : ''}>
         <td><span class="row tight" style="${pcVar(pm)}"><span class="dot"></span><b>${esc(pidLabel(pid))}</b><span class="sub ell maxw">${esc(pidName(pid))}</span></span></td>
         ${cells}
         <td><b>${sum(grid[r], x => x).toFixed(2)}</b></td>
@@ -123,7 +126,7 @@ function tsWeekNav(wk) {
 
 // A day's total the way Adjera sees it: each project rounded on its own, then added up.
 function roundedDayHours(d) {
-  const pids = new Set(state.time.filter(t => t.date === d).map(t => t.pid));
+  const pids = new Set(state.time.filter(t => t.date === d && t.pid !== 'BREAK').map(t => t.pid));
   return sum([...pids], pid => S.roundQ(S.minutesFor(state, pid, d, d) / 60));
 }
 
@@ -166,7 +169,7 @@ function dayDetail({ pids, grid, minutes, dayTotals, di }) {
   const status = state.adjera[day]
     ? '<span class="tag good">Entered in Adjera</span>'
     : dayTotals[di] ? '<span class="tag warn">Not in Adjera yet</span>' : '';
-  const messy = groups.some(g => !timerOn(g.pid) && g.raw % 15);
+  const messy = groups.some(g => g.pid !== 'BREAK' && !timerOn(g.pid) && g.raw % 15);
 
   const viewSeg = `
     <div class="seg viewseg" role="group" aria-label="Show the day as">
@@ -196,7 +199,7 @@ function projectDayRow({ pid, rounded, raw, entries }, pids, day) {
   const pm = p ? person(p.pm) : null;
   const running = timerOn(pid) && liveMinutes(pid, day) > 0;
   const open = !!ui.tsOpen[pid];
-  const blocks = plural(entries.length, 'block') + (running ? ' + timer' : '');
+  const blocks = plural(entries.length, 'block') + (running ? ' + timer' : '') + (pid === 'BREAK' ? ' · not counted' : '');
   const exact = raw % 15 && !running ? ` · ${fmtDuration(raw)} recorded` : '';
   const control = running
     ? `<span class="tag acc">${ic('clock', 'xs')}Timer running</span>`
@@ -208,7 +211,7 @@ function projectDayRow({ pid, rounded, raw, entries }, pids, day) {
       </div>`;
 
   return `
-    <div class="tsgroup">
+    <div class="tsgroup${pid === 'BREAK' ? ' brkrow' : ''}">
       <div class="tsrow" style="${pcVar(pm)}">
         <button class="fold${open ? ' open' : ''}" data-a="tsOpen" data-id="${id}" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} blocks for ${esc(pidLabel(pid))}">${ic('chevR', 's')}</button>
         <span class="dot"></span>
@@ -230,7 +233,7 @@ function blockRow(x, pids) {
        <span class="sub">–</span>
        <input type="time" class="inp timein" id="ee-${id}" data-in="entryEnd" data-id="${id}" value="${timeValue(x.end)}" aria-label="End">`
     : '<span class="sub srcl">No clock time</span>';
-  const moveTo = pids.map(pid => `<option value="${esc(pid)}"${pid === x.pid ? ' selected' : ''}>${esc(pidLabel(pid))}</option>`).join('');
+  const moveTo = [...new Set([...pids, 'OH', 'BREAK'])].map(pid => `<option value="${esc(pid)}"${pid === x.pid ? ' selected' : ''}>${esc(pidLabel(pid))}</option>`).join('');
   return `
     <div class="tsblock">
       <div class="row tight when">${when}</div>
@@ -259,8 +262,9 @@ function addTimeCard() {
       <span class="lbl">Add time by hand</span>
       <div class="row wrap tight">
         <input class="inp wfill" id="ts-proj" list="ts-projlist" placeholder="Project number" aria-label="Project">
-        <datalist id="ts-projlist"><option value="Overhead"></option>${options}</datalist>
+        <datalist id="ts-projlist"><option value="Overhead"></option><option value="Break"></option>${options}</datalist>
         <input class="inp num w90" id="ts-hours" placeholder="Hours" title="1.5 or 1:30" inputmode="decimal" aria-label="Hours">
+        <input type="time" class="inp w140" id="ts-from" aria-label="Start time (optional)" title="Start time (optional). Empty: the first free slot.">
         <input class="inp wfill" id="ts-note" placeholder="Note (optional)" aria-label="Note">
         <button class="btn" data-a="addTime">${ic('plus', 's')}Add</button>
       </div>
@@ -269,13 +273,13 @@ function addTimeCard() {
 }
 
 function adjeraCopyCard({ pids, grid, minutes, dayTotals, di }, day = ui.tsDay) {
-  const lines = pids.map((pid, r) => [pidLabel(pid), grid[r][di]]).filter(([, h]) => h > 0);
+  const lines = pids.map((pid, r) => [pid, pidLabel(pid), grid[r][di]]).filter(([pid, , h]) => h > 0 && pid !== 'BREAK').map(([, code, h]) => [code, h]);
   const copyText = lines.map(([code, h]) => `${code}\t${h.toFixed(2)}`).join('\n');
   // Monospace preview, code padded to 10 characters.
   const preview = lines.map(([code, h]) => code.padEnd(10).slice(0, 10) + h.toFixed(2)).join('\n') +
     (lines.length ? '\n' + 'Total'.padEnd(10) + dayTotals[di].toFixed(2) : '');
   // Time that rounds down to zero would silently go missing from Adjera, so call it out.
-  const tooSmall = pids
+  const tooSmall = pids.filter(pid => pid !== 'BREAK')
     .filter((pid, r) => grid[r][di] === 0 && minutes(pid, day) >= 1)
     .map(pid => `${pidLabel(pid)} (${Math.round(minutes(pid, day))} min)`);
   return `

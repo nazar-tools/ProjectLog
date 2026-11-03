@@ -56,6 +56,11 @@ function viewSettings() {
             <label class="field w140"><span class="lbl">My day ends at</span><input type="time" class="inp" id="dayend" data-in="dayEnd" value="${esc(set.dayEnd)}"></label>
             <label class="field w140"><span class="lbl">Long timer after (h)</span><input class="inp num" id="longtimer" data-in="longTimer" value="${esc(set.longTimerHours)}" inputmode="decimal"></label>
           </div>
+          <div class="row wrap tight">
+            <label class="field w140"><span class="lbl">Usual lunch from</span><input type="time" class="inp" id="lunchfrom" data-in="lunchFrom" value="${esc(set.lunchFrom)}"></label>
+            <label class="field w140"><span class="lbl">to</span><input type="time" class="inp" id="lunchto" data-in="lunchTo" value="${esc(set.lunchTo)}"></label>
+          </div>
+          <span class="sub small">The timeline offers this as a one-click Break. Breaks block out time but don’t count toward your hours.</span>
         </section>
         <section class="card pad stack" aria-label="Appearance">
           <h2 class="h2">Appearance</h2>

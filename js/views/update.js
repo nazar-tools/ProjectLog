@@ -38,7 +38,8 @@ function updateProjects(pmId, wk) {
       name: p.name,
       hours: sum(weekDays(wk), d => roundedHours(pid, d)),
       done: items.filter(i => i.done && i.doneAt >= R.startIso && i.doneAt <= R.endIso).map(i => i.text),
-      open: items.filter(i => !i.done && (i.created || '') <= R.endIso).map(i => i.text).slice(0, 5),
+      open: items.filter(i => !i.done && (i.created || '') <= R.endIso)
+        .sort((a, b) => priorityRank(a) - priorityRank(b)).map(i => i.text).slice(0, 5),
       next
     };
   }).sort((a, b) => b.hours - a.hours);
@@ -114,3 +115,6 @@ function viewUpdate() {
       </section>
     </div>`}`;
 }
+
+// Priority 1-3 and critical tasks go first in "Still open".
+const priorityRank = it => ({ critical: 0, p1: 1, p2: 2, p3: 3 }[it.tag] ?? 4);

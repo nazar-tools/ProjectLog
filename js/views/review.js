@@ -30,7 +30,7 @@ function viewReview() {
     const pm = proj(pid) ? person(proj(pid).pm) : null;
     const cells = days.map((d, i) => `<span class="${i === di ? 'cur' : ''}">${hoursCell(pid, d, grid[r][i], minutes)}</span>`).join('');
     return `
-      <div class="gr">
+      <div class="gr${pid === 'BREAK' ? ' brkrow' : ''}">
         <span class="row tight minw0" style="${pcVar(pm)}"><span class="dot"></span><b class="num">${esc(pidLabel(pid))}</b><span class="sub ell">${esc(pidName(pid))}</span></span>
         ${cells}
         <b class="num">${sum(grid[r], x => x).toFixed(2)}</b>
@@ -45,7 +45,7 @@ function viewReview() {
 
   // Whole week as a grid, project number then Mon-Fri, for pasting into a weekly view.
   const weekText = pids.map((pid, r) => [pidLabel(pid), ...grid[r].map(v => v.toFixed(2))].join('\t'))
-    .filter((line, r) => sum(grid[r], x => x) > 0).join('\n');
+    .filter((line, r) => pids[r] !== 'BREAK' && sum(grid[r], x => x) > 0).join('\n');
 
   return `
     <div class="pagehead">
@@ -81,7 +81,7 @@ function reviewDayCard(pids, grid, minutes, dayTotals, days, di, target) {
   const gap = S.roundQ(target - dayTotals[di]);
   const fill = !state.adjera[day] && dayTotals[di] > 0 && gap > 0;
   // Offer overhead first, then the two projects with the most time that day.
-  const top = pids.map((pid, r) => [pid, grid[r][di]]).filter(([pid, h]) => pid !== 'OH' && h > 0)
+  const top = pids.map((pid, r) => [pid, grid[r][di]]).filter(([pid, h]) => pid !== 'OH' && pid !== 'BREAK' && h > 0)
     .sort((a, b) => b[1] - a[1]).slice(0, 2).map(([pid]) => pid);
   const next = days.slice(di + 1).find((d, i) => dayTotals[di + 1 + i] > 0 && !state.adjera[d]);
   return `
