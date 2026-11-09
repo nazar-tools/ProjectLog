@@ -51,7 +51,7 @@ function viewReview() {
     <div class="pagehead">
       <div class="grow stack gap1">
         <h1 class="h1">Review week · ${fmtRange(wk)}${year}</h1>
-        <span class="sub">Check each day, fix anything odd, then enter it in Adjera. One day at a time.</span>
+        <span class="sub">Check each day, then mark it entered in Adjera.</span>
       </div>
       <div class="row tight">
         <button class="iconbtn" data-a="reviewWeek" data-v="-1" aria-label="Previous week">${ic('chevL', 's')}</button>
@@ -69,7 +69,7 @@ function viewReview() {
         ${allDone ? reviewDoneCard(wk, weekTotal) : reviewDayCard(pids, grid, minutes, dayTotals, days, di, target)}
         <div class="card pad stack">
           <span class="lbl">Or all at once</span>
-          <span class="sub">The whole week as rows of project number and Mon–Fri hours, separated by tabs.</span>
+          <span class="sub">Project and Mon–Fri hours per row, tab separated.</span>
           <button class="btn sm self-start" data-a="copyDay" data-v="${esc(weekText)}"${weekText ? '' : ' disabled'}>${ic('copy', 's')}Copy whole week</button>
         </div>
       </aside>

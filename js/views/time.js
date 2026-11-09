@@ -55,7 +55,7 @@ function viewTime() {
       <div class="pagehead">
         <div class="grow">
           <h1 class="h1">Timesheet</h1>
-          <div class="sub">Rounded to 0.25 h · Adjera code = project number</div>
+          <div class="sub">Rounded to ¼ h</div>
         </div>
         <button class="btn" data-a="openReview" data-v="${esc(wk)}">${ic('check', 's')}<span class="hide-narrow">Review &amp; enter week</span><span class="only-narrow">Review</span></button>
         <a class="iconbtn only-narrow" href="#/settings" aria-label="Settings">${ic('sliders', 's')}</a>
@@ -189,7 +189,6 @@ function dayDetail({ pids, grid, minutes, dayTotals, di }) {
       ${messy ? `
         <div class="row wrap tight">
           <button class="btn sm" data-a="roundDay">${ic('check', 's')}Round every project to ¼ h</button>
-          <span class="sub small">Trims or stretches each project’s last block. You can undo it.</span>
         </div>` : ''}`}`;
 }
 
@@ -261,11 +260,11 @@ function addTimeCard() {
     <div class="card pad stack">
       <span class="lbl">Add time by hand</span>
       <div class="row wrap tight">
-        <input class="inp wfill" id="ts-proj" list="ts-projlist" placeholder="Project number" aria-label="Project">
+        <input class="inp wfill" id="ts-proj" list="ts-projlist" data-in="tsForm" data-v="proj" value="${esc(ui.tsForm.proj)}" placeholder="Project" aria-label="Project">
         <datalist id="ts-projlist"><option value="Overhead"></option><option value="Break"></option>${options}</datalist>
-        <input class="inp num w90" id="ts-hours" placeholder="Hours" title="1.5 or 1:30" inputmode="decimal" aria-label="Hours">
-        <input type="time" class="inp w140" id="ts-from" aria-label="Start time (optional)" title="Start time (optional). Empty: the first free slot.">
-        <input class="inp wfill" id="ts-note" placeholder="Note (optional)" aria-label="Note">
+        <input class="inp num w90" id="ts-hours" data-in="tsForm" data-v="hours" value="${esc(ui.tsForm.hours)}" placeholder="Hours" title="1.5 or 1:30" inputmode="decimal" aria-label="Hours">
+        <input type="time" class="inp w140" id="ts-from" data-in="tsForm" data-v="from" value="${esc(ui.tsForm.from)}" aria-label="Start time (optional)" title="Start time (optional). Empty: the first free slot.">
+        <input class="inp wfill" id="ts-note" data-in="tsForm" data-v="note" value="${esc(ui.tsForm.note)}" placeholder="Note" aria-label="Note">
         <button class="btn" data-a="addTime">${ic('plus', 's')}Add</button>
       </div>
       ${ui.tsError ? `<span class="tag warn self-start">${esc(ui.tsError)}</span>` : ''}
@@ -289,6 +288,6 @@ function adjeraCopyCard({ pids, grid, minutes, dayTotals, di }, day = ui.tsDay) 
       ${tooSmall.length ? `<span class="sub warnline">Rounds to 0, not copied: ${esc(tooSmall.join(', '))}</span>` : ''}
       <button class="btn pri" data-a="copyDay" data-v="${esc(copyText)}"${lines.length ? '' : ' disabled'}>${ic('copy', 's')}Copy ${S.DAYS[di]}</button>
       <label class="row checkline"><input type="checkbox" class="chk" data-a="entered" data-v="${day}"${state.adjera[day] ? ' checked' : ''}>Mark ${S.DAYS[di]} as entered in Adjera</label>
-      <span class="sub small">Copies one line per project: number, tab, hours. Overhead uses the code set in Settings.</span>
+      <span class="sub small">One line per project: number, tab, hours.</span>
     </div>`;
 }

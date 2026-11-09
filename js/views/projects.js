@@ -51,7 +51,7 @@ function viewProjects() {
       <div class="toolbar">
         <label class="search grow projsearch">
           ${ic('search', 's')}
-          <input id="projq" data-in="projq" value="${esc(ui.projQ)}" placeholder="Search number, name or PM…" aria-label="Search projects" autocomplete="off">
+          <input id="projq" data-in="projq" value="${esc(ui.projQ)}" placeholder="Search projects" aria-label="Search projects" autocomplete="off">
         </label>
         <div class="seg hide-narrow">${sortSeg}</div>
       </div>

@@ -213,15 +213,22 @@ textarea.inp { padding: 10px 12px; line-height: 1.5; resize: vertical; min-heigh
 .item .txt:hover { background: var(--surface-2); }
 .item.done .txt { text-decoration: line-through; color: var(--muted); }
 .item .notemark { width: 18px; flex: none; text-align: center; color: var(--muted); line-height: 20px; font-weight: 700; }
-.item .acts { display: none; gap: 2px; }
-.item:hover .acts, .item:focus-within .acts { display: flex; }
+/* Item buttons float over the end of the row, so showing them never reflows the card. */
+.item .acts { position: absolute; right: 6px; top: 1px; display: flex; gap: 2px; padding: 1px 2px; border-radius: 8px; background: var(--surface-1); box-shadow: var(--shadow-1); visibility: hidden; opacity: 0; transition: opacity .1s, visibility 0s; }
+/* Hovering waits a moment before the buttons show (and become clickable), so a click aimed at
+   the end of a task lands on the task. Keyboard focus shows them right away. */
+.item:hover .acts { visibility: visible; opacity: 1; transition-delay: .25s; }
+.item:focus-within .acts, .item .acts:has([aria-expanded="true"]) { visibility: visible; opacity: 1; transition-delay: 0s; }
 .item .acts button { width: 24px; height: 22px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; padding: 0; }
 .item .acts button:hover { background: var(--surface-2); color: var(--text-primary); }
 .item input.edit { flex: 1 1 0; min-width: 0; font-size: 14px; border: 1px solid var(--accent); border-radius: 6px; padding: 0 6px; min-height: 22px; background: var(--surface-1); }
 .addline { display: flex; align-items: center; gap: 6px; padding: 2px 8px 6px; }
 .addline input { flex: 1 1 0; min-width: 0; min-height: 32px; border: 0; border-radius: 8px; background: transparent; padding: 0 8px; font-size: 14px; outline: none; }
 .addline input:focus { background: var(--surface-2); }
-.addline .lvl { font-size: 11px; color: var(--muted); font-weight: 700; min-width: 0; }
+.addtools { display: flex; gap: 2px; flex: none; }
+.addbtn-ic { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--baseline); cursor: pointer; flex: none; }
+.addbtn-ic:hover, .addbtn-ic:focus-visible { background: var(--surface-2); color: var(--text-primary); }
+.addline { position: relative; }
 .psum { border-top: 1px solid var(--gridline); padding: 8px 14px 10px 42px; }
 .grip { width: 18px; height: 20px; margin-left: -20px; display: grid; place-items: center; color: var(--muted); cursor: grab; flex: none; opacity: 0; border-radius: 5px; }
 .grip .ic { width: 14px; height: 14px; stroke-width: 3; }
@@ -392,12 +399,11 @@ table.ts td:has(.cellin), table.ts td:has(.cellro) { padding: 4px 6px; }
 .radarchip .when { font-weight: 800; }
 .radarchip.warn .when { color: var(--warning-ink); }
 .radarchip.acc .when { color: var(--accent-strong); }
-.leftoff { display: flex; align-items: center; gap: 6px; margin: 0 12px 6px 14px; padding: 2px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-strong); }
-.leftoff input { flex: 1 1 0; min-width: 0; min-height: 28px; border: 0; background: transparent; color: inherit; font-size: 13.5px; font-weight: 600; outline: none; }
-.leftoff input::placeholder { color: var(--muted); font-weight: 400; }
-.leftoff.empty { display: none; background: var(--surface-2); color: var(--muted); }
-.card:hover .leftoff.empty, .card:focus-within .leftoff.empty { display: flex; }
-.item .stale { flex: none; margin-top: 1px; padding: 2px 6px; font-size: 10px; }
+.pinned { display: flex; align-items: center; gap: 6px; margin: 0 12px 6px 14px; padding: 2px 4px 2px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-strong); }
+.pinned input { flex: 1 1 0; min-width: 0; min-height: 28px; border: 0; background: transparent; color: inherit; font-size: 13.5px; font-weight: 600; outline: none; }
+.pinned input::placeholder { color: var(--muted); font-weight: 400; }
+.pinned .addbtn-ic { color: var(--accent-strong); }
+.item .stale { flex: none; margin-top: 1px; padding: 2px 6px; font-size: 10px; text-transform: none; letter-spacing: 0; }
 
 /* Timeline */
 .timeline { gap: 8px; }
@@ -482,12 +488,8 @@ textarea.updtext { min-height: 380px; font-size: 14.5px; line-height: 1.55; }
 .legend.brk, .brkrow, tr.brkrow td { color: var(--muted); }
 .btn.brk .dot, .chip.brk .dot { background: var(--baseline); }
 .tg { flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; font-size: 12px; font-weight: 900; line-height: 1; }
-.tg .ic { width: 15px; height: 15px; }
-.tg-important { color: var(--c-orange); }
-.tg-important .ic { fill: currentColor; }
+.tg-important { color: var(--critical); font-size: 16px; }
 .tg-question { color: var(--c-purple); font-size: 15px; }
-.tg-critical { color: var(--critical); font-size: 16px; }
-.tg-idea { color: var(--c-amber); }
 .tg-p1, .tg-p2, .tg-p3 { border: 1.5px solid var(--pc); color: var(--pc); background: color-mix(in srgb, var(--pc) 14%, transparent); font-size: 11px; }
 .tg-p1 { --pc: var(--c-orange); }
 .tg-p2 { --pc: var(--c-blue); }
@@ -498,6 +500,7 @@ textarea.updtext { min-height: 380px; font-size: 14.5px; line-height: 1.55; }
 .tgslot { display: inline-grid; place-items: center; width: 20px; flex: none; }
 .hlswatch { width: 16px; height: 10px; border-radius: 3px; background: rgba(255, 221, 0, .8); }
 .addline .tg { margin-top: 0; }
+.tagtip { padding: 6px 12px 8px; border-top: 1px solid var(--gridline); }
 
 /* Narrow (side panel) */
 @media (max-width: 639px) {
@@ -511,7 +514,9 @@ textarea.updtext { min-height: 380px; font-size: 14.5px; line-height: 1.55; }
   .h1 { font-size: 21px; }
   .h2 { font-size: 16px; }
   .hide-narrow { display: none !important; }
-  .stickyhead { position: sticky; top: 0; z-index: 10; background: var(--page); margin: -12px -10px 0; padding: 12px 12px 10px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+  /* Only the timer stays pinned on narrow screens; headers scroll away to leave room for cards. */
+  .timerbar { position: sticky; top: 0; z-index: 10; box-shadow: 0 0 0 6px var(--page); }
+  .stickyhead { position: static; z-index: 10; background: var(--page); margin: -12px -10px 0; padding: 12px 12px 10px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
   .pagehead { align-items: center; flex-wrap: nowrap; }
   .stickyhead .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 0 12px; }
   .stickyhead .chips::-webkit-scrollbar { display: none; }

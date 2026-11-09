@@ -20,7 +20,7 @@ function viewWeek() {
 
   let subline;
   if (past) {
-    const logged = S.minutesFor(state, null, R.startIso, R.endIso) / 60;
+    const logged = sum(weekDays(wk), roundedDayHours);
     subline = `Past week · ${plural(entries.length, 'project')} · ${fmtH(logged)} h logged`;
   } else {
     subline = `${fmtRange(wk)} · ${WD[new Date().getDay()]} · ${todo.length} to do${done.length ? ` · ${done.length} done` : ''}`;
@@ -47,9 +47,9 @@ function viewWeek() {
         </div>
       </div>
       ${weekNavHtml(wk, cw)}
-      ${past ? '' : timerBar() + adjeraReminder(cw)}
       ${entries.length ? groupToolbar(entries, present, pmFilter) : ''}
     </div>
+    ${past ? '' : timerBar() + adjeraReminder(cw)}
     ${wk === cw ? deadlineRadar(cw) : ''}
     ${weekEmptyState(entries.length, past)}
     <div class="cols">
@@ -173,17 +173,17 @@ function weekEmptyState(count, past) {
 }
 
 function loggedCard(entries, present, R, past) {
-  const loggedFor = list => sum(list, e => S.minutesFor(state, e.pid, R.startIso, R.endIso) + (past ? 0 : liveMinutes(e.pid))) / 60;
+  const loggedFor = list => sum(list, e => weekHours(e.pid, R.startIso));
   const planned = plannedHours(entries);
   const logged = loggedFor(entries);
   return `
     <div class="card pad stack">
-      <span class="lbl">Logged vs planned</span>
-      <span class="num bignum">${fmtH(logged)} <span class="sub">/ ${fmtH(planned)} h</span></span>
-      <div class="meter thick"><i style="width:${pct(logged, planned)}%"></i></div>
+      <span class="lbl">Logged${plannedHours(entries) ? ' vs planned' : ''}</span>
+      <span class="num bignum">${fmtH(logged)} <span class="sub">${planned ? `/ ${fmtH(planned)} h` : 'h'}</span></span>
+      ${planned ? `<div class="meter thick"><i style="width:${pct(logged, planned)}%"></i></div>` : ''}
       ${present.map(p => {
         const mine = entries.filter(e => proj(e.pid).pm === p.id);
-        return `<div class="row stat" style="${pcVar(p)}"><span class="dot"></span><span class="grow">${esc(p.name)}</span><span class="num sub">${fmtH(loggedFor(mine))} / ${fmtH(plannedHours(mine))} h</span></div>`;
+        return `<div class="row stat" style="${pcVar(p)}"><span class="dot"></span><span class="grow">${esc(p.name)}</span><span class="num sub">${fmtH(loggedFor(mine))}${plannedHours(mine) ? ` / ${fmtH(plannedHours(mine))}` : ''} h</span></div>`;
       }).join('')}
     </div>`;
 }
@@ -192,7 +192,7 @@ function scratchPad() {
   return `
     <div class="card pad stack scratch">
       <label class="lbl" for="scratch">Scratch pad</label>
-      <textarea id="scratch" data-in="scratch" placeholder="Anything not tied to a project yet: call-backs, site visits, numbers…">${esc(state.scratch)}</textarea>
+      <textarea id="scratch" data-in="scratch" placeholder="Notes not tied to a project">${esc(state.scratch)}</textarea>
     </div>`;
 }
 
@@ -220,7 +220,7 @@ function cardHtml(e, { wk, R, past }) {
   const num = esc(p.number);
   const open = state.settings.compact ? !!ui.fold[p.id] : !ui.fold[p.id];
   const dd = S.deadlineDate(wk, e);
-  const logged = (S.minutesFor(state, p.id, R.startIso, R.endIso) + (past ? 0 : liveMinutes(p.id))) / 60;
+  const logged = weekHours(p.id, R.startIso);
   const planned = parseFloat(e.hours) || 0;
   const on = timerOn(p.id);
 
@@ -330,7 +330,7 @@ function pastOutlineHtml(pid, wk) {
       ? `<input type="checkbox" class="chk" disabled${i.done ? ' checked' : ''} aria-label="${i.done ? 'Done' : 'Open'}: ${esc(i.text)}">`
       : '<span class="notemark" aria-hidden="true">–</span>';
     const day = i.done && i.doneAt ? `<span class="sub doneday">${WD[S.parseISO(i.doneAt).getDay()]}</span>` : '';
-    return `<div class="item${i.done ? ' done' : ''}${i.tag === 'remember' ? ' hl' : ''}" style="padding-left:${24 + i.level * 22}px">${mark}${tagMark(i.tag)}<span class="ro">${esc(i.text)}</span>${day}</div>`;
+    return `<div class="item${i.done ? ' done' : ''}${tagOf(i) === 'highlight' ? ' hl' : ''}" style="padding-left:${24 + i.level * 22}px">${mark}${tagMark(i.tag)}<span class="ro">${esc(i.text)}</span>${day}</div>`;
   }).join('');
   const journal = !notes.length ? '' : `
     <div class="pastnotes">

@@ -17,6 +17,7 @@ function addJournal(pid) {
   if (!text) return;
   state.journal.push({ id: S.uid('j'), pid, date: S.today(), text });
   el.value = '';
+  ui.journalDraft[pid] = '';
 }
 
 // Sets a project's hours on one day (the timesheet's selected day unless given). Blocks are
@@ -46,8 +47,13 @@ function closeEdit() {
   ui.pmMenu = false;
 }
 
+// Puts the cursor in a box once the page has redrawn: right away when the action is followed by
+// a redraw, and on the next tick otherwise.
 function focusLater(id) {
+  ui.focusId = id;
   setTimeout(() => {
+    if (ui.focusId === id) ui.focusId = null;
+    if (document.activeElement?.id === id) return;
     const el = document.getElementById(id);
     if (!el) return;
     el.focus();
@@ -102,11 +108,13 @@ const actions = {
   },
 
   timer: t => {
+    ui.sleep = null;
     const wasRunning = !!state.timer;
     const logged = timerOn(t.dataset.id) ? S.stopTimer(state) : S.startTimer(state, t.dataset.id);
     if (wasRunning && !logged.length) showToast('That timer ran under a minute, so nothing was logged.');
   },
   stopTimer: () => {
+    ui.sleep = null;
     if (!S.stopTimer(state).length) showToast('That timer ran under a minute, so nothing was logged.');
   },
 
@@ -118,6 +126,7 @@ const actions = {
   },
   editItem: t => {
     ui.editItem = t.dataset.id;
+    ui.editDraft = null;
     focusLater('edit-' + t.dataset.id);
   },
   indent: t => {
@@ -142,6 +151,26 @@ const actions = {
     showToast(`Deleted “${first.text.slice(0, 40)}”${extra}`, () => S.restoreItems(state, deleted));
   },
   tagMenu: t => { ui.tagMenu = ui.tagMenu === t.dataset.id ? null : t.dataset.id; },
+  setAddTag: t => {
+    ui.addTag[t.dataset.id] = t.dataset.v;
+    ui.tagMenu = null;
+    focusLater('add-' + t.dataset.id);
+  },
+  addOutdent: t => {
+    ui.addLevel[t.dataset.id] = S.clampLevel((ui.addLevel[t.dataset.id] || 0) - 1);
+    focusLater('add-' + t.dataset.id);
+  },
+  pinNote: t => {
+    ui.pinEdit = t.dataset.id;
+    focusLater('lo-' + t.dataset.id);
+  },
+  unpin: t => {
+    const p = proj(t.dataset.id);
+    const before = p?.leftOff;
+    if (!before) return;
+    delete p.leftOff;
+    showToast('Pinned note removed', () => { p.leftOff = before; });
+  },
   setTag: t => {
     const it = itemById(t.dataset.id);
     if (it) it.tag = t.dataset.v;
@@ -190,7 +219,7 @@ const actions = {
     openEdit(id);
     const r = route();
     if (r.name !== 'project' || r.id !== id) location.hash = projectHref(id);
-    focusLater('ed-revit');
+    focusLater(t.dataset.v === 'budget' ? 'ed-budget' : 'ed-revit');
   },
   pmMenu: () => { ui.pmMenu = !ui.pmMenu; },
   pickPm: t => {
@@ -350,6 +379,7 @@ const actions = {
     }
     const entry = S.addTime(state, pid, ui.tsDay, hours * 60, note, from ? atTime(ui.tsDay, from) : null);
     ui.tsSel = { id: entry.id };
+    ui.tsForm = {};
   },
   copyDay: t => {
     const text = t.dataset.v;
@@ -485,8 +515,8 @@ const actions = {
   },
   updToggle: t => {
     const k = t.dataset.v;
+    // Hand edits to the message are kept; "Start over" rebuilds it with the new choices.
     state.settings[k] = !state.settings[k];
-    delete ui.updateText[updateKey()];
   },
   updReset: () => { delete ui.updateText[updateKey()]; },
   updCopy: t => {
@@ -527,8 +557,9 @@ const actions = {
     state.timer = { pid, start: to };
   },
   guardSleepKeep: () => { ui.sleep = null; },
-  guardLongKeep: () => { state.timer.askedLong = true; },
-  guardEndKeep: () => { state.timer.askedEnd = true; },
+  // Asked again on a later day, in case the timer is still running tomorrow.
+  guardLongKeep: () => { state.timer.askedLong = S.today(); },
+  guardEndKeep: () => { state.timer.askedEnd = S.today(); },
   guardStopNow: () => { S.stopTimer(state); },
   guardStopAt: () => {
     const value = document.getElementById('guard-at').value;

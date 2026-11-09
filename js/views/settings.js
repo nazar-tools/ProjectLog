@@ -21,9 +21,9 @@ function viewSettings() {
     <div class="cols">
       <section class="card clip pmcard" aria-label="PMs">
         <div class="pad stack">
-          <div class="row between"><h2 class="h2">PMs / project leads</h2><span class="sub hide-narrow">Colour shows on cards, filters and timesheet</span></div>
+          <div class="row between"><h2 class="h2">PMs / project leads</h2></div>
           <div class="row">
-            <input class="inp grow" id="newpm-s" data-k="newpmS" data-in="newPm" value="${esc(ui.newPm)}" placeholder="Add a PM, e.g. Taylor" aria-label="New PM name">
+            <input class="inp grow" id="newpm-s" data-k="newpmS" data-in="newPm" value="${esc(ui.newPm)}" placeholder="New PM name" aria-label="New PM name">
             <button class="btn pri" data-a="addPm">${ic('plus', 's')}Add PM</button>
           </div>
         </div>
@@ -35,7 +35,7 @@ function viewSettings() {
       <aside class="col-side">
         <section class="card pad stack" aria-label="Revit versions">
           <h2 class="h2">Revit versions</h2>
-          <span class="sub">Suggested first in the Revit field. Any other version can still be typed.</span>
+          <span class="sub">Shown first in the Revit field.</span>
           <div class="row wrap tight">
             ${set.revitVersions.map(v => `<span class="vchip">${esc(v)}<button data-a="delVer" data-v="${esc(v)}" aria-label="Remove ${esc(v)}">${ic('x', 's')}</button></span>`).join('')}
           </div>
@@ -46,12 +46,12 @@ function viewSettings() {
         </section>
         <section class="card pad stack" aria-label="Timesheet">
           <h2 class="h2">Timesheet</h2>
-          <label class="field"><span class="lbl">Adjera code for overhead (meetings, admin)</span><input class="inp" id="ohcode" data-in="ohcode" value="${esc(set.overheadCode)}" placeholder="e.g. the overhead number"></label>
+          <label class="field"><span class="lbl">Adjera code for overhead (meetings, admin)</span><input class="inp" id="ohcode" data-in="ohcode" value="${esc(set.overheadCode)}" placeholder="Overhead code"></label>
           <label class="field"><span class="lbl">Hours per week</span><input class="inp num" id="cap" data-in="capacity" value="${esc(set.capacity)}" inputmode="decimal"></label>
         </section>
         <section class="card pad stack" aria-label="Timer guard">
           <h2 class="h2">Timer guard</h2>
-          <span class="sub">Asks before a forgotten timer piles up hours. Laptop sleep is always caught.</span>
+          <span class="sub">Catches forgotten timers and laptop sleep.</span>
           <div class="row wrap tight">
             <label class="field w140"><span class="lbl">My day ends at</span><input type="time" class="inp" id="dayend" data-in="dayEnd" value="${esc(set.dayEnd)}"></label>
             <label class="field w140"><span class="lbl">Long timer after (h)</span><input class="inp num" id="longtimer" data-in="longTimer" value="${esc(set.longTimerHours)}" inputmode="decimal"></label>
@@ -60,7 +60,7 @@ function viewSettings() {
             <label class="field w140"><span class="lbl">Usual lunch from</span><input type="time" class="inp" id="lunchfrom" data-in="lunchFrom" value="${esc(set.lunchFrom)}"></label>
             <label class="field w140"><span class="lbl">to</span><input type="time" class="inp" id="lunchto" data-in="lunchTo" value="${esc(set.lunchTo)}"></label>
           </div>
-          <span class="sub small">The timeline offers this as a one-click Break. Breaks block out time but don’t count toward your hours.</span>
+          <span class="sub small">Adds a one-click Break on the timeline. Breaks don’t count toward your hours.</span>
         </section>
         <section class="card pad stack" aria-label="Appearance">
           <h2 class="h2">Appearance</h2>
@@ -68,7 +68,7 @@ function viewSettings() {
         </section>
         <section class="card pad stack" aria-label="Data">
           <h2 class="h2">Data</h2>
-          <span class="sub">Saved only in this browser on this laptop. Back up now and then: clearing browser data erases it.</span>
+          <span class="sub">Stored in this browser only. Clearing browser data erases it, so back up regularly.</span>
           <div class="row wrap">
             <button class="btn" data-a="export">${ic('download', 's')}Back up (download file)</button>
             <label class="btn">${ic('upload', 's')}Restore or import<input type="file" accept="application/json,.json" data-in="import" class="sr"></label>
@@ -125,12 +125,12 @@ function autoBackupSetting() {
   const last = state.settings.lastAutoBackup;
   let body;
   if (st === 'off') {
-    body = `<span class="sub">Pick a folder once (a OneDrive folder works well) and a backup file is saved there every Friday.</span>
+    body = `<span class="sub">Saves a backup to a folder of your choice (OneDrive works well) every Friday.</span>
       <button class="btn self-start" data-a="autoChoose">${ic('folderUp', 's')}Choose folder</button>`;
   } else {
     body = `
       <span class="sub">Saving to <b>${esc(AutoBackup.folderName)}</b> every Friday.${last ? ` Last one ${fmtDay(last)}.` : ''}</span>
-      ${st === 'needs-click' ? '<span class="sub warnline">The browser wants your OK again before writing there.</span>' : ''}
+      ${st === 'needs-click' ? '<span class="sub warnline">Edge needs your permission again to save there.</span>' : ''}
       <div class="row wrap tight">
         ${st === 'needs-click' ? `<button class="btn pri" data-a="autoNow">Allow and back up</button>` : `<button class="btn" data-a="autoNow">Back up there now</button>`}
         <button class="btn ghost" data-a="autoChoose">Change folder</button>

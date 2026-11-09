@@ -91,15 +91,31 @@ function saveBanner() {
 let rendering = false;
 function render() {
   const a = document.activeElement;
-  const focus = a?.id ? { id: a.id, start: a.selectionStart, end: a.selectionEnd } : null;
+  // Buttons have no id, so they're found again by what they do and what they act on.
+  const sel = a?.id ? '#' + CSS.escape(a.id)
+    : a?.dataset?.a ? `[data-a="${CSS.escape(a.dataset.a)}"]${a.dataset.id ? `[data-id="${CSS.escape(a.dataset.id)}"]` : ''}${a.dataset.v ? `[data-v="${CSS.escape(a.dataset.v)}"]` : ''}`
+    : null;
+  const focus = sel ? { sel, start: a.selectionStart, end: a.selectionEnd } : null;
   const r = route();
   rendering = true;
   document.getElementById('root').innerHTML = shell(VIEWS[r.name](r), r);
   rendering = false;
+  // An action asked for a particular box to get the cursor (a new pinned note, say).
+  if (ui.focusId) {
+    const el = document.getElementById(ui.focusId);
+    ui.focusId = null;
+    if (el) {
+      el.focus();
+      if (typeof el.value === 'string' && el.setSelectionRange) el.setSelectionRange(el.value.length, el.value.length);
+      return;
+    }
+  }
   if (!focus) return;
-  const el = document.getElementById(focus.id);
+  const el = document.querySelector(focus.sel);
   if (!el) return;
   el.focus({ preventScroll: true });
+  // Item buttons are hidden until hovered, so fall back to the item itself.
+  if (document.activeElement !== el) el.closest('.item')?.querySelector('.txt')?.focus({ preventScroll: true });
   if (typeof focus.start === 'number' && el.setSelectionRange) el.setSelectionRange(focus.start, focus.end);
 }
 
@@ -161,35 +177,6 @@ document.addEventListener('keydown', e => {
     return;
   }
 
-  // OneNote-style keys on a task or note: Ctrl+1 task/note, Ctrl+3/5/7/8/9 tags, Ctrl+0 no tag.
-  // In the add box they set the tag for the next item.
-  const onItem = t.classList?.contains('txt') || t.dataset?.k === 'editItem';
-  if ((e.ctrlKey || e.metaKey) && /^[0-9]$/.test(e.key) && (onItem || t.dataset?.k === 'add')) {
-    const tag = e.key === '0' ? '' : TAG_KEYS[e.key];
-    if (tag === undefined && e.key !== '1') return;
-    e.preventDefault();
-    if (t.dataset.k === 'add') {
-      if (e.key === '1') return;
-      ui.addTag[t.dataset.id] = tag && ui.addTag[t.dataset.id] !== tag ? tag : '';
-      const typed = t.value;
-      render();
-      document.getElementById(t.id).value = typed;
-      return;
-    }
-    const it = itemById(t.dataset.id);
-    if (!it) return;
-    if (t.dataset.k === 'editItem') it.text = t.value.trim() || it.text;
-    if (e.key === '1') {
-      it.kind = it.kind === 'task' ? 'note' : 'task';
-      it.done = false;
-    } else {
-      it.tag = tag && it.tag !== tag ? tag : '';
-    }
-    save();
-    render();
-    return;
-  }
-
   // Task text acts as a button: Enter or Space edits it, Alt+Up/Down moves it.
   if (t.classList?.contains('txt')) {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -213,48 +200,76 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  if (t.dataset?.in === 'tsForm' && e.key === 'Enter') {
+    e.preventDefault();
+    if (actions.addTime() !== false) {
+      save();
+      render();
+    }
+    return;
+  }
+
   if (t.id === 'planq' && e.key === 'Enter') {
     e.preventDefault();
-    const first = document.querySelector('.results [data-a="addEntry"]');
-    if (first) first.click();
+    const first = document.querySelector('.results .res [data-a="addEntry"], .results .res .tag');
+    if (first?.dataset.a === 'addEntry') first.click();
     return;
   }
 
   const k = t.dataset?.k;
   const pid = t.dataset?.id;
+  // Backspace at the very start of an indented box steps it back out, like in OneNote.
+  const atStart = t.selectionStart === 0 && t.selectionEnd === 0;
+  if (k === 'add' && e.key === 'Backspace' && atStart && ui.addLevel[pid]) {
+    e.preventDefault();
+    ui.addLevel[pid]--;
+    rerenderKeeping(t);
+    return;
+  }
+  if (k === 'editItem' && e.key === 'Backspace' && atStart && itemById(pid)?.level) {
+    e.preventDefault();
+    const it = itemById(pid);
+    it.text = t.value.trim() || it.text;
+    it.level--;
+    save();
+    render();
+    document.getElementById(t.id)?.setSelectionRange(0, 0);
+    return;
+  }
   if (k === 'add') {
     if (e.key === 'Tab') {
       e.preventDefault();
       ui.addLevel[pid] = S.clampLevel((ui.addLevel[pid] || 0) + (e.shiftKey ? -1 : 1));
-      // The redraw rebuilds this box, so carry over what's been typed so far.
-      const typed = t.value;
-      render();
-      document.getElementById(t.id).value = typed;
+      rerenderKeeping(t);
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (S.addItem(state, pid, t.value, ui.addLevel[pid] || 0, ui.addTag[pid])) {
         t.value = '';
+        ui.addDraft[pid] = '';
         ui.addTag[pid] = '';
         save();
         render();
       }
     } else if (e.key === 'Escape') {
-      t.value = '';
       ui.addLevel[pid] = 0;
-      render();
+      ui.addTag[pid] = '';
+      rerenderKeeping(t);
+      document.getElementById(t.id)?.blur();
     }
   } else if (k === 'editItem') {
     const it = itemById(pid);
     if (!it) return;
     if (e.key === 'Enter') {
       e.preventDefault();
-      commitEdit(t);
+      commitEdit(t, true);
     } else if (e.key === 'Escape') {
       ui.editItem = null;
       render();
     } else if (e.key === 'Tab') {
       e.preventDefault();
-      it.text = t.value.trim() || it.text;
+      const typed = S.splitTag(t.value.trim());
+      it.text = typed.text || it.text;
+      if (typed.tag) it.tag = typed.tag;
       it.level = S.clampLevel(it.level + (e.shiftKey ? -1 : 1));
       save();
       render();
@@ -276,13 +291,27 @@ document.addEventListener('keydown', e => {
   }
 });
 
-function commitEdit(input) {
-  const it = itemById(input.dataset.id);
-  const text = input.value.trim();
-  if (it && text) it.text = text;
-  ui.editItem = null;
+// The add box is rebuilt on redraw, so carry over what's been typed and where the cursor was.
+function rerenderKeeping(input) {
+  const { value, selectionStart: at } = input;
+  render();
+  const el = document.getElementById(input.id);
+  if (!el) return;
+  el.value = value;
+  el.setSelectionRange(at, at);
+}
+
+function commitEdit(input, keepFocus = false) {
+  const id = input.dataset.id;
+  const it = itemById(id);
+  const typed = S.splitTag(input.value.trim());
+  if (it && typed.text) it.text = typed.text;
+  if (it && typed.tag) it.tag = typed.tag;
+  if (ui.editItem === id) ui.editItem = null;
+  ui.editDraft = null;
   save();
   render();
+  if (keepFocus) document.getElementById('txt-' + id)?.focus();
 }
 
 // Leaving an item's edit box saves it. The delay lets a click on another item land first.
@@ -296,9 +325,19 @@ document.addEventListener('focusout', e => {
     setTimeout(render);
     return;
   }
-  if (t.dataset?.k !== 'editItem' || ui.editItem !== t.dataset.id) return;
+  // A new pinned note left empty goes away again.
+  if (t.dataset?.in === 'leftOff' && ui.pinEdit === t.dataset.id) {
+    setTimeout(() => {
+      if (document.activeElement?.id === t.id) return;
+      ui.pinEdit = null;
+      render();
+    }, 120);
+    return;
+  }
+  if (t.dataset?.k !== 'editItem') return;
+  // Saved even when the click went to another task's text, which starts editing that one.
   setTimeout(() => {
-    if (ui.editItem === t.dataset.id) commitEdit(t);
+    if (document.activeElement !== t && itemById(t.dataset.id)) commitEdit(t);
   }, 120);
 });
 
@@ -361,6 +400,10 @@ document.addEventListener('dragend', () => {
 document.addEventListener('input', e => {
   const t = e.target;
   const id = t.dataset?.id;
+  const k = t.dataset?.k;
+  if (k === 'add') ui.addDraft[id] = t.value;
+  if (k === 'editItem') ui.editDraft = { id, value: t.value };
+  if (k === 'journal') ui.journalDraft[id] = t.value;
   switch (t.dataset?.in) {
     case 'scratch': state.scratch = t.value; break;
     case 'notes': if (proj(id)) proj(id).notes = t.value; break;
@@ -387,12 +430,12 @@ document.addEventListener('input', e => {
     case 'newPm': ui.newPm = t.value; return;
     case 'newVer': ui.newVer = t.value; return;
     case 'palq': ui.palette.q = t.value; ui.palette.sel = 0; render(); return;
+    case 'tsForm': ui.tsForm[t.dataset.v] = t.value; return;
     case 'leftOff': {
       const p = proj(id);
       if (!p) return;
       if (t.value.trim()) p.leftOff = { text: t.value, date: S.today() };
       else delete p.leftOff;
-      t.closest('.leftoff')?.classList.toggle('empty', !p.leftOff);
       break;
     }
     case 'updateText': ui.updateText[t.dataset.v] = t.value; return;
@@ -458,16 +501,19 @@ document.addEventListener('change', e => {
       } else {
         showToast('Type hours like 1.5 or 1:30');
       }
-      render();
+      // Redraw after the Tab has moved focus, so the cursor lands in the next cell.
+      setTimeout(render);
       break;
     }
     case 'tsTotal': {
       const hours = parseHours(t.value);
       if (hours >= 0) setDayHours(id, S.roundQ(hours));
       else showToast('Type hours like 1.5 or 1:30');
-      render();
+      setTimeout(render);
       break;
     }
+    case 'tsForm':
+      return;
     case 'entryHours':
     case 'entryNote':
     case 'entryPid':
@@ -492,28 +538,37 @@ function editTimeEntry(x, input) {
   }
   if (field === 'entryPid') {
     x.pid = input.value;
-    render();
+    setTimeout(render);
     return true;
   }
+  // Times never run into the neighbouring blocks, so the day can't add up to more than the clock.
+  const { lo, hi } = tlBounds(x);
   if (field === 'entryHours') {
     const hours = parseHours(input.value);
-    const ok = hours > 0;
-    if (ok) {
-      x.minutes = Math.round(hours * 60);
-      if (x.start) x.end = x.start + x.minutes * 60000;
-    } else {
+    if (!(hours > 0)) {
       showToast('Type hours like 1.5 or 1:30');
+      setTimeout(render);
+      return false;
     }
-    render();
-    return ok;
+    const end = Math.min(x.start + Math.round(hours * 60) * 60000, hi);
+    if (end < x.start + hours * 3600000) showToast(`Stopped at ${clock(end)}, where the next block starts.`);
+    Object.assign(x, { end, minutes: Math.round((end - x.start) / 60000) });
+    setTimeout(render);
+    return true;
   }
   // entryStart / entryEnd
   if (!input.value) return false;
-  const start = field === 'entryStart' ? atTime(x.date, input.value) : x.start;
-  const end = field === 'entryEnd' ? atTime(x.date, input.value) : x.end;
+  let start = field === 'entryStart' ? atTime(x.date, input.value) : x.start;
+  let end = field === 'entryEnd' ? atTime(x.date, input.value) : x.end;
   if (end <= start) {
     showToast('The end time has to be after the start.');
     return false;
+  }
+  if (start < lo || end > hi) {
+    start = Math.max(start, lo);
+    end = Math.min(end, hi);
+    showToast('Trimmed so it doesn’t overlap the blocks next to it.');
+    if (end <= start) return false;
   }
   Object.assign(x, { start, end, minutes: Math.round((end - start) / 60000) });
   return true;
@@ -591,7 +646,7 @@ setInterval(() => {
 setInterval(() => {
   runAutoBackup();
   const closed = S.closePastWeeks(state);
-  if (closed) save();
+  if (keepCurrentWeek() || closed) save();
   if (!closed && !state.timer) return;
   if (document.hidden || dragId || tlDrag || ui.modal || ui.pmMenu || ui.palette) return;
   if (document.activeElement?.matches('input, textarea, select')) return;
@@ -603,7 +658,17 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) S.saveNow(state);
 });
 
-if (S.closePastWeeks(state)) S.saveNow(state);
+// This week's list is only a preview copy of last week until something on it changes. Keep it
+// as soon as the app is in use, so next week can look back at it even if the plan was never touched.
+function keepCurrentWeek() {
+  const cw = curWeek();
+  if (state.weeks[cw] || !S.peekWeek(state, cw).entries.length) return false;
+  S.ensureWeek(state, cw);
+  return true;
+}
+
+const keptWeek = keepCurrentWeek();
+if (S.closePastWeeks(state) || keptWeek) S.saveNow(state);
 applyTheme();
 render();
 AutoBackup.load().then(runAutoBackup, err => console.warn('Automatic backup folder unavailable', err));

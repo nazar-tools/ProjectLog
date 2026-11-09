@@ -9,7 +9,7 @@ function guardHtml() {
   if (!t) return '';
   const name = esc(t.pid === 'OH' ? 'Overhead' : pidLabel(t.pid));
 
-  if (ui.sleep && ui.sleep.pid === t.pid) {
+  if (ui.sleep && ui.sleep.pid === t.pid && ui.sleep.from >= t.start) {
     const mins = Math.round((ui.sleep.to - ui.sleep.from) / 60000);
     return guardCard('moon', `Your laptop slept ${clock(ui.sleep.from)} – ${clock(ui.sleep.to)}`,
       `The ${name} timer kept counting through it. Take that time out?`,
@@ -25,7 +25,7 @@ function guardHtml() {
     </label>
     <button class="btn" data-a="guardStopAt">Stop at that time</button>`;
 
-  if (!t.askedEnd && pastDayEnd()) {
+  if (t.askedEnd !== S.today() && pastDayEnd()) {
     return guardCard('clock', `It’s ${clock(Date.now())} and ${name} is still running`,
       `Started ${clock(t.start)}. If you forgot it, stop it when you actually finished.`,
       `${stopAt}
@@ -33,7 +33,7 @@ function guardHtml() {
        <button class="btn ghost" data-a="guardEndKeep">Still working</button>`);
   }
 
-  if (!t.askedLong && ran >= (parseFloat(state.settings.longTimerHours) || 3) * 60) {
+  if (t.askedLong !== S.today() && ran >= (parseFloat(state.settings.longTimerHours) || 3) * 60) {
     return guardCard('alert', `Still on ${name}?`,
       `This timer has run ${fmtDuration(ran)} without a break.`,
       `<button class="btn pri" data-a="guardLongKeep">Yes, keep going</button>${stopAt}`);

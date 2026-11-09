@@ -28,7 +28,7 @@ function viewPlan() {
       ${weekSeg('only-narrow')}
       <label class="search accent">
         ${ic('search')}
-        <input id="planq" data-in="planq" value="${esc(ui.planQ)}" placeholder="Add a project: type a number or name" aria-label="Add a project to this week" autocomplete="off">
+        <input id="planq" data-in="planq" value="${esc(ui.planQ)}" placeholder="Add a project by number or name" aria-label="Add a project to this week" autocomplete="off">
       </label>
       ${ui.planQ.trim() ? searchResults(onWeek) : ''}
     </div>
@@ -44,7 +44,7 @@ function viewPlan() {
       <section class="col-main" aria-label="Projects on this week">
         <div class="row between">
           <h2 class="h2">On this week · ${entries.length}</h2>
-          <span class="sub hide-narrow">Removing keeps the project’s tasks and notes</span>
+          
         </div>
         <div class="card clip list">
           ${entries.length ? entries.map(planRow).join('') : '<div class="empty">No projects yet. Search above to add one.</div>'}
@@ -105,7 +105,7 @@ function planRow(e) {
         </div>
       </div>
       <input class="inp num hrs" id="h-${id}" data-in="hours" data-id="${id}" value="${esc(e.hours)}" inputmode="decimal" placeholder="h" aria-label="Planned hours for ${num}">
-      <input class="inp dl" id="l-${id}" data-in="label" data-id="${id}" value="${esc(e.label)}" placeholder="Deadline, e.g. QA/QC Print" aria-label="Deadline for ${num}">
+      <input class="inp dl" id="l-${id}" data-in="label" data-id="${id}" value="${esc(e.label)}" placeholder="Deadline" aria-label="Deadline for ${num}">
       <div class="days" role="group" aria-label="Deadline day for ${num}">
         ${days}
         <input type="date" id="d-${id}" data-in="date" data-id="${id}" value="${esc(e.date)}" aria-label="Other deadline date">
@@ -154,7 +154,7 @@ function recentCard(wk, onWeek) {
   }).join('');
   return `
     <div class="card clip">
-      <div class="pad stack cardhead"><b>Recently on your list</b><span class="sub">Not on this week · one click to add back</span></div>
+      <div class="pad stack cardhead"><b>Recently on your list</b><span class="sub">Not on this week</span></div>
       <div class="list">${rows || '<div class="empty sub">Nothing recent that isn’t already on the week.</div>'}</div>
     </div>`;
 }

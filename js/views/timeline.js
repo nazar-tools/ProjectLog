@@ -80,7 +80,7 @@ function dayTimeline(day, pids) {
         ${lunch ? `<button class="btn sm" data-a="tlLunch">${ic('coffee', 's')}Lunch ${clock(atTime(day, state.settings.lunchFrom))} – ${clock(atTime(day, state.settings.lunchTo))}</button>` : ''}
         ${unsnapped ? `<button class="btn sm" data-a="tlSnap" title="Move every block's start and end to the nearest quarter hour">Snap times to ¼ h</button>` : ''}
       </div>
-      <span class="sub small">Drag a block anywhere to move it, drag its edges to change its length, or drag across empty space to add time.</span>
+      <span class="sub small">Drag blocks to move or resize them. Drag across empty space to add time.</span>
     </section>
     ${timelinePanel(sel, gaps, blocks, pids)}`;
 }

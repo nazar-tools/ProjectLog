@@ -110,7 +110,7 @@ function viewUpdate() {
         <div class="row wrap tight">
           <button class="btn pri" data-a="updCopy" data-id="${esc(pm.id)}">${ic('copy', 's')}Copy for Teams</button>
           <button class="btn" data-a="updMail" data-id="${esc(pm.id)}">${ic('send', 's')}Open in Outlook</button>
-          ${pm.email ? '' : '<span class="sub small">Add an email for this PM in Settings to fill in the To line.</span>'}
+          ${pm.email ? '' : '<span class="sub small">Add this PM’s email in Settings to fill in the To line.</span>'}
         </div>
       </section>
     </div>`}`;

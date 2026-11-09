@@ -17,7 +17,7 @@ function viewHealth() {
     const share = budget ? used / budget : 0;
     const level = share >= 0.9 ? 'crit' : share >= 0.75 ? 'warn' : '';
     let note;
-    if (!budget) note = `<button class="btn sm" data-a="editProject" data-id="${esc(p.id)}">Add budget</button>`;
+    if (!budget) note = `<button class="btn sm" data-a="editProject" data-id="${esc(p.id)}" data-v="budget">Add budget</button>`;
     else if (share >= 1) note = `<span class="tag crit">Over budget${pm ? ' · tell ' + esc(pm.name) : ''}</span>`;
     else if (share >= 0.9) note = `<span class="tag crit">${Math.round(share * 100)}%${pm ? ' · tell ' + esc(pm.name) : ''}</span>`;
     else if (share >= 0.75) note = `<span class="tag warn">${Math.round(share * 100)}% used</span>`;
@@ -38,7 +38,7 @@ function viewHealth() {
     <div class="pagehead">
       <div class="grow stack gap1">
         <h1 class="h1">Hours and health</h1>
-        <span class="sub">Budget hours come from the workload app; set them with the pencil on each project. Logged is everything on your timesheet.</span>
+        <span class="sub">Set a budget with the pencil on each project. Logged includes all timesheet hours.</span>
       </div>
     </div>
     <section class="card clip scrollx" aria-label="Hours budget">
@@ -69,7 +69,7 @@ function staleCard() {
     <div class="card clip">
       <div class="pad stack gap1">
         <h2 class="h2">Carried over 3+ weeks</h2>
-        <span class="sub">Still open since they were written. Do them, or drop them so they stop following you.</span>
+        <span class="sub">Tasks left open for 3 weeks or more.</span>
       </div>
       <div class="list ruled">${rows || '<div class="empty sub">Nothing older than three weeks. Nice.</div>'}</div>
     </div>`;
@@ -100,7 +100,7 @@ function revitCard(all) {
   return `
     <div class="card pad stack">
       <h2 class="h2">Revit versions</h2>
-      <span class="sub">Active projects by version, for when IT rolls out a new one. Click a version to list them.</span>
+      <span class="sub">Active projects by version. Click one to list them.</span>
       <div class="list">${rows}</div>
     </div>`;
 }

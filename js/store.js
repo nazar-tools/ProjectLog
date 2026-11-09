@@ -97,6 +97,9 @@
       t.start = freeSlot(s, t.date, t.minutes * 60000, t);
       t.end = t.start + t.minutes * 60000;
     }
+    // v1.9 trimmed the tag set: critical joins important, remember becomes highlight.
+    const OLD = { critical: 'important', remember: 'highlight', idea: '' };
+    for (const it of [...s.items, ...s.trash]) if (it.tag in OLD) it.tag = OLD[it.tag];
     // Gaps marked "not work" in v1.6-1.7 become Break blocks, which do the same job.
     for (const [date, keys] of Object.entries(s.gapSkips || {})) {
       for (const k of keys) {
@@ -241,17 +244,24 @@
       kind = 'note';
       t = t.replace(/^[-–—]\s*/, '');
     }
-    // "! " critical, "* " important, "? " question, as quick ways to tag while typing.
-    const prefix = t.match(/^([!*?])\s+/);
-    if (prefix) t = t.slice(prefix[0].length);
-    if (!t) return null;
+    const typed = splitTag(t);
+    if (!typed.text) return null;
     const it = {
-      id: uid('i'), pid, text: t, kind, level: clampLevel(level || 0), done: false, doneAt: '', created: today(),
-      tag: tag || (prefix ? { '!': 'critical', '*': 'important', '?': 'question' }[prefix[1]] : '')
+      id: uid('i'), pid, text: typed.text, kind, level: clampLevel(level || 0), done: false, doneAt: '', created: today(),
+      tag: typed.tag || tag || ''
     };
     const last = s.items.map(x => x.pid).lastIndexOf(pid);
     s.items.splice(last === -1 ? s.items.length : last + 1, 0, it);
     return it;
+  }
+
+  // A tag typed at the start of a task: "! " important, "? " question, "* " highlight,
+  // "p1 " to "p3 " priority. Returns the text without it.
+  function splitTag(text) {
+    const m = text.match(/^(!|\?|\*|[pP][123])\s+/);
+    if (!m) return { text, tag: '' };
+    const sym = m[1].toLowerCase();
+    return { text: text.slice(m[0].length).trim(), tag: { '!': 'important', '?': 'question', '*': 'highlight' }[sym] || sym };
   }
 
   // An item plus the deeper-indented items right under it.
@@ -488,7 +498,7 @@
     load, save, saveNow, fromSeed, mergeSeed, migrate, onOtherWindowSave,
     saveError: () => saveError, onSaveStatus: null,
     peekWeek, ensureWeek, inWeek, deadlineDate, itemsAsOf, closePastWeeks,
-    itemsFor, addItem, subtree, moveItem, nudgeItem, deleteItem, restoreItems,
+    itemsFor, addItem, splitTag, subtree, moveItem, nudgeItem, deleteItem, restoreItems,
     minutesFor, startTimer, stopTimer, roundQ, setDayMinutes, undoDayEdit, roundDay, freeSlot, addTime,
     dayGaps, fillGap, snapDay, unsnapDay
   };

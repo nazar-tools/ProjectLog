@@ -7,7 +7,9 @@ let state = S.load();
 
 // Screen-only state: what's open, typed into a search box, and so on. Never saved.
 const ui = {
-  fold: {}, addLevel: {}, addTag: {}, tagMenu: null, editItem: null, showDone: {},
+  fold: {}, addLevel: {}, addTag: {}, tagMenu: null, pinEdit: null,
+  // Text typed but not entered yet, so a redraw never wipes it.
+  addDraft: {}, editDraft: null, journalDraft: {}, tsForm: {}, focusId: null, editItem: null, showDone: {},
   viewWeek: null, planQ: '', planOffset: 0,
   projQ: '', projView: 'recent', projPm: 'all', projSort: 'last', projAll: false,
   edit: null, draft: null, draftError: '', pmMenu: false,
@@ -117,6 +119,9 @@ const timerOn = pid => !!state.timer && state.timer.pid === pid;
 const dayTarget = () => (parseFloat(state.settings.capacity) || 40) / 5;
 // A project's hours on one day the way Adjera gets them.
 const roundedHours = (pid, d) => S.roundQ(S.minutesFor(state, pid, d, d) / 60);
+// A project's hours for a week, rounded day by day like the Timesheet, running timer included.
+const weekHours = (pid, wk) => sum(S.DAYS.map((x, i) => S.iso(S.addDays(S.parseISO(wk), i))),
+  d => S.roundQ((S.minutesFor(state, pid, d, d) + liveMinutes(pid, d)) / 60));
 
 // Whole weeks an open task has been sitting there; 0 for anything finished or under 3 weeks.
 function staleWeeks(it) {
@@ -184,9 +189,10 @@ let toastTimer = null;
 function showToast(text, undo) {
   ui.toast = { text, undo: undo || null };
   clearTimeout(toastTimer);
+  // Only the toast goes away, so nothing you're typing gets redrawn under you.
   toastTimer = setTimeout(() => {
     ui.toast = null;
-    render();
+    document.querySelector('.toast')?.remove();
   }, 8000);
 }
 
@@ -227,6 +233,7 @@ const ICONS = {
   folderUp: '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/><path d="M12 10v6"/><path d="m9 13 3-3 3 3"/>',
   star: '<path d="M12 2.5 15 8.6l6.7 1-4.9 4.7 1.2 6.7L12 17.8 6 21l1.2-6.7-4.9-4.7 6.7-1z"/>',
   bulb: '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/>',
+  pin: '<path d="M12 17v5"/><path d="M5 17h14v-1.8a2 2 0 0 0-1.1-1.8l-1.8-.9A2 2 0 0 1 15 10.8V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.8a2 2 0 0 1-1.1 1.7l-1.8.9A2 2 0 0 0 5 15.2Z"/>',
   tag: '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/>',
   coffee: '<path d="M17 8h1a4 4 0 0 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z"/><path d="M6 2v2"/><path d="M10 2v2"/><path d="M14 2v2"/>',
   logo: '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>'
@@ -273,26 +280,25 @@ function timerBar() {
     </div>`;
 }
 
-// Tags on tasks and notes, after OneNote's. Ctrl+number works on a selected item; the
-// numbers match OneNote's where it has them.
+// Tags on tasks and notes. Pick one from the tag button, or type its symbol at the start of a
+// task: "! Call PM", "p1 Panel schedules". [tag, label, what to type]
 const TAGS = [
-  ['important', 'Important', '3'],
-  ['question', 'Question', '5'],
-  ['remember', 'Remember for later', '7'],
-  ['p1', 'Priority 1', '8'],
-  ['p2', 'Priority 2', '9'],
-  ['p3', 'Priority 3', ''],
-  ['critical', 'Critical', ''],
-  ['idea', 'Idea', '']
+  ['p1', 'Priority 1', 'p1'],
+  ['p2', 'Priority 2', 'p2'],
+  ['p3', 'Priority 3', 'p3'],
+  ['important', 'Important', '!'],
+  ['question', 'Question', '?'],
+  ['highlight', 'Highlight', '*']
 ];
-const TAG_KEYS = Object.fromEntries(TAGS.filter(t => t[2]).map(t => [t[2], t[0]]));
+
+// Tags from v1.8 that were folded into the set above.
+const OLD_TAGS = { critical: 'important', remember: 'highlight', idea: '' };
+const tagOf = it => OLD_TAGS[it.tag] ?? (it.tag || '');
 
 function tagMark(tag) {
-  switch (tag) {
-    case 'important': return `<span class="tg tg-important" title="Important">${ic('star', 'xs')}</span>`;
+  switch (OLD_TAGS[tag] ?? tag) {
+    case 'important': return `<span class="tg tg-important" title="Important">!</span>`;
     case 'question': return '<span class="tg tg-question" title="Question">?</span>';
-    case 'critical': return '<span class="tg tg-critical" title="Critical">!</span>';
-    case 'idea': return `<span class="tg tg-idea" title="Idea">${ic('bulb', 'xs')}</span>`;
     case 'p1': case 'p2': case 'p3': return `<span class="tg tg-${tag}" title="Priority ${tag[1]}">${tag[1]}</span>`;
     default: return '';
   }

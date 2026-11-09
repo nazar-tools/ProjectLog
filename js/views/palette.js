@@ -62,7 +62,7 @@ function paletteHtml() {
       <div class="palette" role="dialog" aria-modal="true" aria-label="Quick actions">
         <label class="palsearch">
           ${ic('search')}
-          <input id="palq" data-in="palq" value="${esc(ui.palette.q)}" placeholder="Type a project number or what to do…" aria-label="Search actions" autocomplete="off">
+          <input id="palq" data-in="palq" value="${esc(ui.palette.q)}" placeholder="Search projects or actions" aria-label="Search actions" autocomplete="off">
           <span class="kbd">Esc</span>
         </label>
         <div class="palresults">${rows || '<div class="sub empty">Nothing matches.</div>'}</div>

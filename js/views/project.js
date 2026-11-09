@@ -41,15 +41,15 @@ function viewProject(id) {
         <section class="card pad stack">
           <div class="row between">
             <h2 class="h2">Project notes</h2>
-            <span class="sub hide-narrow">Always true for this project · saves as you type</span>
+            <span class="sub hide-narrow">Saves as you type</span>
           </div>
-          <textarea class="inp" id="notes-${pid}" data-in="notes" data-id="${pid}" rows="6" placeholder="Service, equipment, who to ask, where things live…">${esc(p.notes)}</textarea>
+          <textarea class="inp" id="notes-${pid}" data-in="notes" data-id="${pid}" rows="6" placeholder="Equipment, contacts, file locations…">${esc(p.notes)}</textarea>
         </section>
         <section class="stack">
-          <div class="row between"><h2 class="h2">Journal</h2><span class="sub">Dated notes, newest first</span></div>
+          <div class="row between"><h2 class="h2">Journal</h2><span class="sub">Newest first</span></div>
           <div class="card clip list">
             <div class="row journaladd">
-              <input class="inp grow" id="jn-${pid}" data-k="journal" data-id="${pid}" placeholder="Add a note for today… (Enter)" aria-label="New journal note">
+              <input class="inp grow" id="jn-${pid}" data-k="journal" data-id="${pid}" value="${esc(ui.journalDraft[p.id])}" placeholder="Add a dated note" aria-label="New journal note">
               <button class="btn" data-a="addJournal" data-id="${pid}">Add</button>
             </div>
             ${journal.map(j => `
@@ -62,7 +62,7 @@ function viewProject(id) {
         </section>
       </div>
       <aside class="col-side">
-        <div class="card clip"><div class="pad cardhead"><b>Tasks and notes</b></div>${outlineHtml(p.id)}</div>
+        <div class="card"><div class="pad cardhead"><b>Tasks and notes</b></div>${outlineHtml(p.id)}</div>
         ${projectHoursCard(p, entry, R)}
       </aside>
     </div>`;
@@ -95,25 +95,25 @@ function editFormHtml(p) {
       ${people.map(x => `<button class="opt${x.id === d.pm ? ' sel' : ''}" role="option" aria-selected="${x.id === d.pm}" data-a="pickPm" data-v="${esc(x.id)}" style="${pcVar(x)}"><span class="dot"></span>${esc(x.name)}</button>`).join('')}
       <button class="opt" data-a="pickPm" data-v=""><span class="dot nopm"></span>No PM</button>
       <div class="row menufoot">
-        <input class="inp" id="newpm" data-k="newpm" placeholder="+ New PM name, Enter" aria-label="New PM name">
+        <input class="inp" id="newpm" data-k="newpm" placeholder="New PM name" aria-label="New PM name">
         <a class="btn sm" href="#/settings">Colours…</a>
       </div>
     </div>`;
 
   return `
     <section class="card pad stack editform" aria-label="Edit project">
-      <div class="row between"><h2 class="h2">Edit project</h2><span class="sub hide-narrow">Changes show on every card and week</span></div>
+      <div class="row between"><h2 class="h2">Edit project</h2></div>
       <div class="row wrap fields">
         <label class="field w150"><span class="lbl">Number (= Adjera code)</span><input class="inp num" id="ed-number" data-in="draft" data-v="number" value="${esc(d.number)}"></label>
         <label class="field wfill"><span class="lbl">Name</span><input class="inp" id="ed-name" data-in="draft" data-v="name" value="${esc(d.name)}"></label>
-        <label class="field w150"><span class="lbl">Budget hours</span><input class="inp num" id="ed-budget" data-in="draft" data-v="budget" value="${esc(d.budget)}" inputmode="decimal" placeholder="from workload app"></label>
+        <label class="field w150"><span class="lbl">Budget hours</span><input class="inp num" id="ed-budget" data-in="draft" data-v="budget" value="${esc(d.budget)}" inputmode="decimal" placeholder="Hours"></label>
       </div>
       <div class="row wrap fields">
         <label class="field w200">
           <span class="lbl">Revit version</span>
-          <input class="inp" id="ed-revit" list="rvt-list-ed" data-in="draft" data-v="revit" value="${esc(d.revit)}" placeholder="Type or pick, e.g. RVT27">
+          <input class="inp" id="ed-revit" list="rvt-list-ed" data-in="draft" data-v="revit" value="${esc(d.revit)}" placeholder="e.g. RVT27">
           ${revitDatalist('rvt-list-ed')}
-          <span class="sub small">Pick from the list or type any version</span>
+          
         </label>
         <div class="field menuwrap wfill">
           <span class="lbl">PM / lead</span>
