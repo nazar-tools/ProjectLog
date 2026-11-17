@@ -411,15 +411,41 @@ table.ts td:has(.cellin), table.ts td:has(.cellro) { padding: 4px 6px; }
 .tick { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; }
 .tick:first-child { transform: none; }
 .tick:last-child { transform: translateX(-100%); }
-.tltrack { position: relative; height: 64px; border-radius: 10px; background: var(--surface-2); touch-action: none; user-select: none; cursor: crosshair; }
-.tlblock, .tlgap { position: absolute; top: 6px; bottom: 6px; display: flex; align-items: center; padding: 0 6px; border: 0; border-radius: 8px; overflow: hidden; cursor: pointer; }
-.tlblock { background: var(--pc); color: #fff; font-size: 11.5px; font-weight: 800; white-space: nowrap; cursor: grab; }
+/* Label column + track column; one row per project. */
+.tlgrid { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 4px 10px; align-items: center; }
+.tllabel { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; line-height: 1.2; }
+.tllabel .dot { flex: none; }
+.tllabel .grow { display: flex; flex-direction: column; }
+.tllabel .tlname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: 12px; }
+.tllabel .tlhrs { flex: none; font-weight: 700; font-size: 12.5px; }
+.tllabel.brk .dot { background: var(--baseline); }
+.tllabel.overview { flex-direction: column; align-items: flex-start; gap: 0; font-weight: 700; color: var(--text-secondary); }
+.tltrack { position: relative; height: 40px; border-radius: 8px; background: var(--surface-2); touch-action: none; user-select: none; cursor: crosshair; }
+.tltrack.overview { height: 26px; }
+.tltrack.lane { background: repeating-linear-gradient(90deg, transparent 0 calc(100% / var(--hours, 11) - 1px), var(--gridline) 0 calc(100% / var(--hours, 11))), var(--surface-2); }
+.tltrack.droptarget { box-shadow: inset 0 0 0 2px var(--accent); }
+.tlmini { position: absolute; top: 5px; bottom: 5px; border-radius: 4px; background: var(--pc); pointer-events: none; }
+.tlmini.brk { background: repeating-linear-gradient(135deg, var(--surface-1) 0 4px, var(--gridline) 4px 8px); box-shadow: inset 0 0 0 1px var(--baseline); }
+.tltrack.overview .tlgap { top: 3px; bottom: 3px; border-radius: 4px; }
+.tlblock, .tlgap { position: absolute; top: 4px; bottom: 4px; display: flex; align-items: center; padding: 0 6px; border: 0; border-radius: 6px; overflow: hidden; cursor: pointer; }
+.tlblock { gap: 6px; background: var(--pc); color: #fff; font-size: 11.5px; font-weight: 700; white-space: nowrap; cursor: grab; text-align: left; }
+.tlblock .tlt, .tlblock .tln { overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.tlblock .tln { font-weight: 500; opacity: .9; }
+/* Text inside a block only shows when it fits: times from ~55px, the note from ~120px. */
+.tlblock { container-type: inline-size; }
+@container (max-width: 62px) { .tlblock .tlt { display: none; } }
+@container (max-width: 120px) { .tlblock .tln { display: none; } }
+.tlticks { container-type: inline-size; }
+@container (max-width: 620px) { .tick:nth-child(even) span { display: none; } }
+.tlblock.dragging { z-index: 3; opacity: .92; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+.blockhead { gap: 8px; padding-bottom: 0; font-size: 14px; }
+.tladd { width: auto; max-width: 260px; }
 .tlblock:active { cursor: grabbing; }
 .tlblock .edge { position: absolute; top: 0; bottom: 0; width: 9px; cursor: ew-resize; }
 .tlblock .edge.s { left: 0; }
 .tlblock .edge.e { right: 0; }
 .tlblock:hover .edge::after, .tlblock.sel .edge::after { content: ""; position: absolute; top: 30%; bottom: 30%; left: 3px; width: 3px; border-radius: 2px; background: rgba(255,255,255,.75); }
-.tlrange { position: absolute; top: 6px; bottom: 6px; border: 2px dashed var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent-soft) 70%, transparent); pointer-events: none; }
+.tlrange { position: absolute; top: 3px; bottom: 3px; border: 2px dashed var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent-soft) 70%, transparent); pointer-events: none; }
 .tltip { position: absolute; top: -28px; transform: translateX(-50%); padding: 3px 8px; border-radius: 6px; background: var(--text-primary); color: var(--page); font-size: 12px; font-weight: 700; white-space: nowrap; pointer-events: none; z-index: 2; }
 .tlblock.live { cursor: default; background-image: repeating-linear-gradient(135deg, transparent 0 8px, rgba(255,255,255,.28) 8px 16px); }
 .tlgap { border: 1.5px dashed var(--warning); background: repeating-linear-gradient(135deg, var(--warn-bg) 0 6px, transparent 6px 12px); }
@@ -569,8 +595,15 @@ textarea.updtext { min-height: 380px; font-size: 14.5px; line-height: 1.55; }
   .timein { width: 116px; }
   .palbg { padding-top: 16px; }
   .reviewgrid { min-width: 560px; }
-  .tick:nth-child(even) span { display: none; }
-  .tlblock { color: transparent; }
+  /* Side panel: each project's name sits on its own line above its lane, so it's never cut to a few letters. */
+  .tlgrid { grid-template-columns: 1fr; gap: 2px; }
+  .tlgrid > span:first-child { display: none; }
+  .tllabel { margin-top: 6px; }
+  .tllabel .grow { flex-direction: row; align-items: baseline; gap: 6px; }
+  .tllabel.overview { flex-direction: row; align-items: baseline; gap: 8px; margin-top: 0; }
+  .tltrack { height: 30px; }
+  .tltrack.overview { height: 22px; }
+  .tlblock { top: 3px; bottom: 3px; padding: 0 4px; font-size: 10.5px; }
   .gr { grid-template-columns: minmax(130px, 1.6fr) repeat(5, minmax(0, 1fr)) minmax(0, 1fr); }
   .gr .sub.ell { display: none; }
   .steps .step { flex: 1 1 0; justify-content: center; padding: 0 4px; }

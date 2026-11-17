@@ -13,7 +13,7 @@ const ui = {
   viewWeek: null, planQ: '', planOffset: 0,
   projQ: '', projView: 'recent', projPm: 'all', projSort: 'last', projAll: false,
   edit: null, draft: null, draftError: '', pmMenu: false,
-  tsOffset: 0, tsDay: null, tsError: '', tsOpen: {}, tsView: 'list', tsSel: null,
+  tsOffset: 0, tsDay: null, tsError: '', tsOpen: {}, tsView: 'list', tsSel: null, tlLanes: {},
   reviewWeek: null, reviewDay: null,
   updateWeek: null, updatePm: null, updateText: {},
   healthOpen: null, palette: null, sleep: null,

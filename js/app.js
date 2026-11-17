@@ -480,6 +480,13 @@ document.addEventListener('change', e => {
     case 'np':
       if (ui.modal) ui.modal.draft[t.dataset.v] = t.type === 'checkbox' ? t.checked : t.value;
       return;
+    case 'tlAddLane': {
+      if (!t.value) return;
+      const day = ui.tsDay;
+      ui.tlLanes[day] = [...(ui.tlLanes[day] || []), t.value];
+      render();
+      return;
+    }
     case 'tsWeekSel':
       ui.tsOffset = Math.round(daysBetween(curWeek(), t.value) / 7);
       ui.tsDay = null;
