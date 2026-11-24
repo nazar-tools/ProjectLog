@@ -1,58 +1,669 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Project Log</title>
-  <meta name="description" content="Weekly project planning, notes and time tracking.">
-  <meta name="theme-color" content="#f9f9f7">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="css/styles.css">
-  <script>
-    // Apply the saved theme before the first paint so the page and title bar don't flash.
-    try {
-      const theme = JSON.parse(localStorage.getItem('projectlog.v1'))?.settings?.theme;
-      if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
-    } catch {}
-    document.querySelector('meta[name="theme-color"]').content = getComputedStyle(document.documentElement).backgroundColor;
-  </script>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<!-- Two theme-color tags gated by media, so the OS repaints the status bar itself (a JS-driven
+     change alone doesn't on Android). app.js only touches them when Appearance is forced to
+     Light or Dark. Keep the colors in sync with --page in css/styles.css.
+     manifest.json uses the dark page color for both its colors: an installed app on Android
+     paints the system navigation bar from the manifest, which holds one color, so a light one
+     left a white bar in dark mode. -->
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f9f9f7" />
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d0d0d" />
+<title>Fit Log</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Fit Log" />
+<link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-  <div id="root"><p style="padding:24px;font-family:system-ui">Loading Project Log…</p></div>
-  <noscript><p style="padding:24px">Project Log needs JavaScript turned on.</p></noscript>
+<div id="app">
 
-  <!-- Order matters: each file can use what the files above it define. -->
-  <script src="js/version.js"></script>
-  <script src="js/seed.js"></script>
-  <script src="js/store.js"></script>
-  <script src="js/core.js"></script>
-  <script src="js/backup.js"></script>
-  <script src="js/views/outline.js"></script>
-  <script src="js/views/week.js"></script>
-  <script src="js/views/plan.js"></script>
-  <script src="js/views/projects.js"></script>
-  <script src="js/views/project.js"></script>
-  <script src="js/views/time.js"></script>
-  <script src="js/views/timeline.js"></script>
-  <script src="js/views/review.js"></script>
-  <script src="js/views/update.js"></script>
-  <script src="js/views/health.js"></script>
-  <script src="js/views/guard.js"></script>
-  <script src="js/views/palette.js"></script>
-  <script src="js/views/settings.js"></script>
-  <script src="js/actions.js"></script>
-  <script src="js/app.js"></script>
-  <script>
-    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      // When an update installs, reload once so it takes effect now instead of next time.
-      const hadWorker = !!navigator.serviceWorker.controller;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (hadWorker) location.reload();
-      });
-      navigator.serviceWorker.register('sw.js');
-    }
-  </script>
+  <header class="topbar" id="topbar">
+    <h1 class="brand">Fit Log</h1>
+    <button id="openSettingsBtn" class="icon-btn" aria-label="Settings" title="Settings">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+    </button>
+  </header>
+
+  <main id="main">
+
+    <!-- FIRST-RUN SETUP WIZARD (only ever shown once, before any data exists -
+         see startSetupWizard() in app.js) -->
+    <section id="view-setup" class="view setup-view" data-view="setup" hidden>
+      <div class="setup-progress" id="setupProgress" aria-hidden="true"></div>
+      <div class="setup-head">
+        <div class="setup-head-row"><span class="setup-hero" id="setupHero" aria-hidden="true"></span><span class="setup-kicker" id="setupKicker">Welcome to Fit Log</span></div>
+        <h1 id="setupStepLabel"></h1>
+        <p class="setup-lead" id="setupLead"></p>
+      </div>
+      <div id="setupContent"></div>
+      <div class="setup-actions">
+        <button type="button" class="btn btn-primary btn-block" id="setupNextBtn">Continue</button>
+        <div class="setup-actions-row">
+          <button type="button" class="btn btn-ghost" id="setupBackBtn" hidden>Back</button>
+          <button type="button" class="btn btn-ghost" id="setupSkipBtn" hidden>Not now</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- DATA RECOVERY SCREEN (shown instead of the app when saved data exists
+         but couldn't be read - see showRecoveryScreen() in app.js) -->
+    <section id="view-recover" class="view" data-view="recover" hidden>
+      <div class="section-head"><h2>Fit Log couldn’t read your saved data</h2></div>
+      <div class="card form-card">
+        <p>Something went wrong loading your data, so nothing has been changed or deleted — it's still sitting in this browser's storage exactly as it was.</p>
+        <p>Export a recovery file first. It's the raw file the app couldn't read, but it keeps every byte intact in case it can be fixed or recovered later.</p>
+        <button type="button" class="btn btn-primary btn-block" id="recoverExportBtn">Export recovery file</button>
+        <button type="button" class="btn-text-danger" id="recoverResetBtn">Erase this data and start fresh</button>
+      </div>
+    </section>
+
+    <!-- HOME (internally "dashboard") - what needs doing or is happening today:
+         streak card, unlogged check-ins, daily targets, today's logged items, water and food.
+         Goals and trends live in the Progress view below. -->
+    <section id="view-dashboard" class="view" data-view="dashboard">
+      <div class="section-head home-head"><h2>Today</h2><span class="muted-text" id="todayDate"></span></div>
+
+      <div id="setupReviewBanner" class="card" hidden>
+        <h3>New tracking options are available</h3>
+        <p class="muted-text">Fit Log has added extra macros, insight cards, and an on/off switch for each area since you started. Take a look?</p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-ghost" id="dismissSetupReviewBtn">Not now</button>
+          <button type="button" class="btn btn-primary" id="openSetupReviewBtn">Review tracking</button>
+        </div>
+      </div>
+
+      <button type="button" id="streakCard" class="streak-card"></button>
+
+      <div class="section-head" id="dailyTargetsHead" hidden><h2>Daily</h2><span class="muted-text" id="checklistCount"></span></div>
+      <div id="dailyTargetsWrap" class="card card-list" hidden></div>
+
+      <div class="section-head" id="trainingHead" hidden><h2>Workout</h2></div>
+      <div id="trainingWrap" class="card card-list" hidden></div>
+
+      <div class="section-head" id="nutritionHead" hidden><h2>Nutrition</h2><span class="head-actions"><span class="tag">Food</span><button type="button" class="icon-btn icon-btn-sm" id="homeFoodPencil" aria-label="Edit food targets"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg></button></span></div>
+      <div id="nutritionWrap" class="card card-list" hidden></div>
+
+      <div id="miniGrid" class="mini-grid" hidden></div>
+
+      <div class="section-head" id="goalsHead" hidden><h2>Goals</h2><button type="button" class="link-btn" id="goalsOpenBtn">Open in Progress</button></div>
+      <div id="goalsWrap" class="card card-list" hidden></div>
+
+    </section>
+
+    <!-- PROGRESS - one card per tracked area: its chart, then its long-term goals -->
+    <section id="view-progress" class="view" data-view="progress" hidden>
+      <div class="section-head"><h2>Progress</h2><span id="progressRange"></span></div>
+      <div id="progressCharts">
+        <div id="chartsOverview" class="charts-overview"></div>
+        <div id="dashboardEmpty" class="empty-state" hidden>
+          <p>Nothing to chart yet. Turn on an area in Settings and log something, and its chart shows up here.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOG -->
+    <section id="view-log" class="view" data-view="log" hidden>
+      <div class="section-head">
+        <h2>Log</h2>
+      </div>
+      <div class="domain-tabs" id="logCategorySegmented" role="radiogroup" aria-label="What to log"></div>
+      <div id="logAllOffHint" class="empty-state" hidden>
+        <p>Every area is turned off. Turn one back on in Settings to start logging.</p>
+      </div>
+
+      <!-- Log -> Daily: habits and daily rep targets (rendered by renderLogDailyPanel). -->
+      <!-- The small two-line summary every Log tab opens with (renderLogGlance). -->
+      <div id="logGlance" class="card log-glance" hidden></div>
+      <div class="f-scroll pg" id="logTrackerChipsWrap" hidden><div class="f-chips" id="logTrackerChips" role="radiogroup" aria-label="Tracker"></div></div>
+      <div id="logDailyPanel" class="daily-panel" hidden></div>
+
+      <!-- Log -> Workout. Nothing chosen yet (or "Switch exercise" tapped):
+           the searchable picker below, same pattern as Log -> Food. Once an
+           exercise is chosen the form leads, with the list collapsed to the
+           "Switch exercise" row. #logExercise stays the single source of
+           truth for the chosen exercise (hidden). -->
+      <div id="logExercisePicker" class="form-card is-bare" style="gap:12px" hidden>
+        <div class="search-row"><label class="search"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input type="search" id="logExSearch" placeholder="Search exercises" aria-label="Search exercises" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" /></label><button type="button" class="icon-btn filter-btn" id="logExFilterBtn" aria-label="Filter"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg></button></div>
+        <p class="filter-note" id="logExFilterNote" hidden><span></span><button type="button" class="link-btn">Clear</button></p>
+        <div id="logExList" class="entry-list"></div>
+        <button type="button" class="showall" id="logExShowAll" hidden></button>
+      </div>
+
+      <!-- Three flat blocks on the page (who, what, save) instead of one card
+           holding boxes holding boxes. -->
+      <form id="logForm" class="form-card is-bare">
+        <div class="log-head card" id="logExerciseHead"></div>
+        <select id="logExercise" hidden aria-hidden="true" tabindex="-1"></select>
+        <div id="logFields" class="card form-card">
+          <label class="field">
+            <span class="field-label">Date</span>
+            <input type="date" id="logDate" required />
+          </label>
+          <div id="logDynamicFields"></div>
+          <label class="field">
+            <span class="field-label">Note (optional)</span>
+            <input type="text" id="logNote" placeholder="How did it feel?" maxlength="200" />
+          </label>
+          <div class="setting-row" id="logLightRow" hidden>
+            <span>Light session <span class="muted-text">(not a working day: left out of the trend and tips)</span></span>
+            <button type="button" class="switch" id="logLightSwitch" role="switch" aria-checked="false" aria-label="Light session"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Save entry</button>
+      </form>
+
+      <div id="logSwitchCard" class="card card-list" hidden>
+        <button type="button" class="setting-row row-switch" id="logSwitchBtn"></button>
+      </div>
+
+      <form id="logMeasurementForm" class="card form-card" hidden>
+        <select id="logTracker" hidden aria-hidden="true" tabindex="-1"></select>
+        <div class="field">
+          <span class="field-label" id="logMeasurementValueLabel">Value</span>
+          <div class="meas-stepper">
+            <button type="button" class="step-btn" data-meas-step="-1" aria-label="Decrease">&minus;</button>
+            <label class="meas-value"><input type="number" step="any" inputmode="decimal" id="logMeasurementValue" required aria-labelledby="logMeasurementValueLabel" /><span class="meas-unit" id="logMeasurementUnit"></span></label>
+            <button type="button" class="step-btn" data-meas-step="1" aria-label="Increase">+</button>
+          </div>
+        </div>
+        <div class="field" id="logSleepQualityField" hidden>
+          <span class="field-label">Sleep quality <span class="muted-text">(optional, tap again to clear)</span></span>
+          <div class="chip-picker" id="logSleepQuality" data-value="" role="radiogroup" aria-label="Sleep quality">
+            <button type="button" class="chip-option" data-value="1" role="radio" aria-checked="false">1</button>
+            <button type="button" class="chip-option" data-value="2" role="radio" aria-checked="false">2</button>
+            <button type="button" class="chip-option" data-value="3" role="radio" aria-checked="false">3</button>
+            <button type="button" class="chip-option" data-value="4" role="radio" aria-checked="false">4</button>
+            <button type="button" class="chip-option" data-value="5" role="radio" aria-checked="false">5</button>
+          </div>
+        </div>
+        <div class="meas-meta">
+          <button type="button" class="f-chip" id="logMeasurementDateBtn" aria-expanded="false">Today</button>
+          <button type="button" class="link-btn" id="logMeasurementNoteBtn" aria-expanded="false">Add note</button>
+        </div>
+        <label class="field" id="logMeasurementDateField" hidden>
+          <span class="field-label">Date</span>
+          <input type="date" id="logMeasurementDate" required />
+        </label>
+        <label class="field" id="logMeasurementNoteField" hidden>
+          <span class="field-label">Note (optional)</span>
+          <input type="text" id="logMeasurementNote" maxlength="200" />
+        </label>
+        <button type="submit" class="btn btn-primary btn-block" id="logMeasurementSaveBtn">Save entry</button>
+      </form>
+
+      <div id="logWaterPanel" class="form-card is-bare" hidden>
+        <div id="waterCupList" class="card card-list"></div>
+        <label class="field card">
+          <span class="field-label">Custom amount (<span id="logWaterUnitLabel"></span>)</span>
+          <div class="inline-time-fields">
+            <input type="number" step="any" min="0" id="logWaterCustomAmount" placeholder="e.g. 12" data-enter-clicks="logWaterCustomAddBtn" />
+            <button type="button" class="btn btn-secondary" id="logWaterCustomAddBtn">Add</button>
+          </div>
+        </label>
+      </div>
+
+      <!-- Log -> Food leads with saved foods (the one-tap path used every
+           day); typing a food in by hand is collapsed under it. -->
+      <div id="savedFoodsWrap" class="form-card is-bare" style="gap:12px" hidden>
+        <div class="search-row"><label class="search"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input type="search" id="foodSearch" placeholder="Search my foods" aria-label="Search my foods" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" /></label><button type="button" class="icon-btn filter-btn" id="foodFilterBtn" aria-label="Filter"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg></button></div>
+        <p class="filter-note" id="foodFilterNote" hidden><span></span><button type="button" class="link-btn">Clear</button></p>
+        <div id="savedFoodLogList" class="entry-list"></div>
+        <button type="button" class="showall" id="foodShowAll" hidden></button>
+      </div>
+
+      <div id="logFoodManualCard" class="card card-list" hidden>
+        <button type="button" class="setting-row row-switch" id="logFoodCreateBtn"></button>
+        <button type="button" class="setting-row row-switch" id="logFoodManualBtn"></button>
+      </div>
+
+      <form id="logFoodForm" class="card form-card" hidden>
+        <label class="field">
+          <span class="field-label">Date</span>
+          <input type="date" id="logFoodDate" required />
+        </label>
+        <div id="logFoodDynamicFields"></div>
+        <label class="field">
+          <span class="field-label">Note (optional)</span>
+          <input type="text" id="logFoodNote" placeholder="What was it?" maxlength="200" />
+        </label>
+        <button type="submit" class="btn btn-primary btn-block">Save entry</button>
+      </form>
+
+      <div class="section-head" id="recentHead">
+        <h2>Latest entry</h2>
+        <button type="button" class="link-btn" id="recentHistoryBtn">See all in History</button>
+      </div>
+      <div id="recentEntries" class="entry-list"></div>
+    </section>
+
+    <!-- HISTORY -->
+    <section id="view-history" class="view" data-view="history" hidden>
+      <div class="section-head"><h2>History</h2></div>
+
+      <div class="card calendar-card">
+        <div class="calendar-header">
+          <button type="button" class="icon-btn-sm" id="calPrevBtn" aria-label="Previous month">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="calendar-month-label" id="calMonthLabel"></div>
+          <button type="button" class="icon-btn-sm" id="calNextBtn" aria-label="Next month">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+        <div class="calendar-weekdays">
+          <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+        <div class="calendar-legend" id="calendarLegend"></div>
+      </div>
+
+      <!-- Filled by renderHistoryCategorySegmented() with domainTabsHtml(), shared with Log and Manage. -->
+      <div class="domain-tabs" id="historyCategorySegmented" role="radiogroup" aria-label="History category"></div>
+      <!-- The tapped day's week, for the area shown (renderHistoryWeek). -->
+      <div id="historyWeek" hidden></div>
+      <div class="section-head">
+        <h2 id="historyListHeading">All entries</h2>
+      </div>
+      <label class="field" id="historyFilterField">
+        <span class="field-label">Filter by exercise</span>
+        <select id="historyFilter"></select>
+      </label>
+      <div id="historyList" class="entry-list"></div>
+      <div id="historyEmpty" class="empty-state" hidden>
+        <p id="historyEmptyText">No entries logged yet.</p>
+      </div>
+    </section>
+
+    <!-- MANAGE: one panel per area that is on (Workout, Daily, Body, Water, Food). Areas are switched in Settings. -->
+    <section id="view-manage" class="view" data-view="manage" hidden>
+      <div class="section-head">
+        <h2>Manage</h2>
+      </div>
+      <!-- Filled by setManageCategory(). Manage always lists all five areas (ALL_DOMAIN_CATEGORIES),
+           since it is where an area that is off gets turned back on. -->
+      <div class="domain-tabs" id="manageCategorySegmented" role="radiogroup" aria-label="Manage category"></div>
+      <p class="muted-text" id="manageAllOffHint" hidden>Nothing is being tracked yet.</p>
+      <button type="button" class="link-btn manage-areas-link" id="manageAreasBtn">Turn areas on or off</button>
+
+      <div id="manageExercisesPanel">
+        <p class="muted-text" id="trackWorkoutOffHint" hidden>Workout is off — hidden from Home, Log, and History. Nothing already logged is lost; turn it back on to see it again.</p>
+
+        <div id="workoutTrackedFields">
+          <div id="importCard" class="card tidy-card" hidden></div>
+          <div id="tidyCard" class="card tidy-card" hidden></div>
+          <div class="section-head">
+            <h2>Exercises</h2>
+            <div class="head-actions"><button class="btn btn-secondary btn-sm" data-action="open-catalog" data-cat-tab-open="exercises">From catalog</button><button class="btn btn-secondary btn-sm btn-icon-label" data-action="add-exercise"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span>Add</span></button></div>
+          </div>
+          <div class="search-row"><label class="search"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input type="search" id="exManageSearch" placeholder="Search exercises" aria-label="Search exercises" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" /></label><button type="button" class="icon-btn filter-btn" id="exManageFilterBtn" aria-label="Filter"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg></button></div>
+          <p class="filter-note" id="exManageFilterNote" hidden><span></span><button type="button" class="link-btn">Clear</button></p>
+          <div id="exerciseManageList" class="org-list"></div>
+        </div>
+      </div>
+
+      <div id="manageDailyPanel" hidden>
+        <p class="muted-text" id="trackDailyOffHint" hidden>Daily is off — hidden from Home, Log, and History. Nothing already logged is lost; turn it back on to see it again.</p>
+
+        <div id="dailyTrackedFields">
+          <div class="section-head">
+            <h2>Habits &amp; reps</h2>
+            <div class="head-actions"><button class="btn btn-secondary btn-sm" data-action="open-catalog" data-cat-tab-open="habits">From catalog</button><button class="btn btn-secondary btn-sm btn-icon-label" data-action="add-daily"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span>Add</span></button></div>
+          </div>
+          <p class="muted-text">Things you do every day. A habit is checked off (once or a few times a day); a daily rep target, like push-ups, adds up toward a number.</p>
+          <div id="dailyManageList" class="org-list"></div>
+        </div>
+      </div>
+
+      <div id="manageMeasurementsPanel" hidden>
+        <p class="muted-text" id="trackMeasurementsOffHint" hidden>Body is off — hidden from Home, Log, and History. Nothing already logged is lost; turn it back on to see it again.</p>
+
+        <div id="measurementsTrackedFields">
+          <div class="section-head">
+            <h2>Body &amp; wellness trackers</h2>
+            <button class="btn btn-secondary btn-sm btn-icon-label" data-action="add-tracker"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span>Add tracker</span></button>
+          </div>
+          <p class="muted-text">Anything you want a number and a trend line for — weight, body fat %, a circumference, sleep hours, calories, or anything else you think to add later.</p>
+          <div id="trackerManageList" class="entry-list"></div>
+        </div>
+      </div>
+
+      <div id="manageWaterPanel" hidden>
+        <p class="muted-text" id="trackWaterOffHint" hidden>Water is off — hidden from Home, Log, and History. Nothing already logged is lost; turn it back on to see it again.</p>
+
+        <div id="waterTrackedFields">
+          <div class="section-head"><h2>Daily water goal</h2></div>
+          <div class="card form-card">
+            <label class="field">
+              <span class="field-label">Goal (<span id="waterGoalUnitLabel"></span>)</span>
+              <input type="number" step="any" min="0" id="waterGoalInput" data-enter-clicks="saveWaterGoalBtn" />
+            </label>
+            <button class="btn btn-secondary btn-sm" id="saveWaterGoalBtn">Save goal</button>
+          </div>
+          <div class="section-head">
+            <h2>Cup sizes</h2>
+            <button class="btn btn-secondary btn-sm btn-icon-label" data-action="add-cup"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span>Add cup</span></button>
+          </div>
+          <div id="cupManageList" class="entry-list"></div>
+        </div>
+      </div>
+
+      <div id="manageFoodPanel" hidden>
+        <p class="muted-text" id="trackFoodOffHint" hidden>Food is off — hidden from Home, Log, and History. Nothing already logged is lost; turn it back on to see it again.</p>
+
+        <div id="foodTrackedFields">
+          <!-- Saved foods first - it's the feature actually used every day
+               (one-tap re-logging), so it leads the panel instead of
+               trailing after two setup-once sections. -->
+          <div class="section-head">
+            <h2>My foods</h2>
+            <div class="head-actions"><button class="btn btn-secondary btn-sm" data-action="open-catalog" data-cat-tab-open="foods">From catalog</button><button class="btn btn-secondary btn-sm btn-icon-label" data-action="add-saved-food"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span>Add</span></button></div>
+          </div>
+          <label class="search"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input type="search" id="foodManageSearch" placeholder="Search my foods" aria-label="Search my foods" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" /></label>
+          <div class="f-scroll pg"><div class="f-chips" id="foodManageChips" role="radiogroup"></div><button type="button" class="f-more" aria-label="See more filters"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></div>
+          <div class="sortrow"><span id="foodSortLabel"></span><button type="button" id="foodSortBtn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>Sort</button></div>
+          <div id="savedFoodManageList" class="org-list"></div>
+
+          <div class="section-head"><h2>Tracked macros</h2></div>
+          <p class="muted-text">Calories is always tracked and required to log an entry. Tap a macro below to also track it — tap again to stop; nothing already logged is lost either way.</p>
+          <!-- Populated by renderMacroTrackChips() - a compact chip per
+               non-calorie MACRO_KEYS entry, replacing what used to be a full
+               toggle+label row per field; untracked chips get the shared
+               .is-toggled-off dimming. -->
+          <div class="chip-picker" id="macroTrackChips" role="group" aria-label="Tracked macros"></div>
+
+          <div class="section-head"><h2>Calorie target</h2></div>
+          <p class="muted-text">How your calorie target is set. Calculator estimates it from your profile and activity, Manual is a number you type, and No Target hides the calorie ring and shows plain totals.</p>
+          <div class="segmented segmented-fill" id="calorieModeSegmented" role="radiogroup" aria-label="Calorie target">
+            <button type="button" data-calorie-mode="calc" role="radio">Calculator</button>
+            <button type="button" data-calorie-mode="manual" role="radio">Manual</button>
+            <button type="button" data-calorie-mode="none" role="radio">No Target</button>
+          </div>
+
+          <div class="card card-list" id="nutritionCalcCard">
+            <div id="nutritionCalcFields" hidden>
+              <div class="field">
+                <span class="field-label">Activity level</span>
+                <select id="nutritionActivityLevel" aria-label="Activity level"></select>
+              </div>
+              <div class="field">
+                <span class="field-label">Goal</span>
+                <div class="segmented" id="nutritionGoalSegmented" role="radiogroup" aria-label="Nutrition goal">
+                  <button type="button" data-goal-choice="lose" role="radio">Lose weight</button>
+                  <button type="button" data-goal-choice="maintain" role="radio">Maintain</button>
+                  <button type="button" data-goal-choice="gain" role="radio">Gain weight</button>
+                </div>
+              </div>
+              <p class="muted-text field-hint" id="nutritionCalcMissing" hidden></p>
+              <div class="pr-grid" id="nutritionCalcPreview" hidden>
+                <div class="pr-tile"><div class="value" id="nutritionCalcCalories">—</div><div class="label">Calories/day</div></div>
+                <div class="pr-tile"><div class="value" id="nutritionCalcProtein">—</div><div class="label">Protein/day</div></div>
+              </div>
+              <button type="button" class="btn btn-primary btn-block" id="applyNutritionCalcBtn">Apply to daily goals</button>
+            </div>
+          </div>
+
+          <p class="muted-text">Add a goal to any tracked field to see progress against it on Home. Calories follows the choice above.</p>
+          <div class="card card-list" id="macroGoalRows"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS (reached via the gear icon in the header, not a bottom tab) -->
+    <section id="view-settings" class="view" data-view="settings" hidden>
+      <div class="modal-title-row"><h2>Settings</h2><button type="button" class="modal-close" aria-label="Close" data-action="close-settings"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+
+      <div class="section-head"><h2>Appearance</h2></div>
+      <div class="card theme-card-wrap">
+        <div class="theme-grid" id="themeSegmented" role="radiogroup" aria-label="Theme">
+          <button type="button" class="theme-opt" data-theme-choice="light" role="radio"><span class="theme-prev" aria-hidden="true"><span class="pv pv-light"><i></i><i></i><i></i><b></b></span></span><span class="theme-name"><span class="setting-icon-sm" data-icon="sun"></span>Light</span><span class="theme-radio" aria-hidden="true"></span></button>
+          <button type="button" class="theme-opt" data-theme-choice="dark" role="radio"><span class="theme-prev" aria-hidden="true"><span class="pv pv-dark"><i></i><i></i><i></i><b></b></span></span><span class="theme-name"><span class="setting-icon-sm" data-icon="moon"></span>Dark</span><span class="theme-radio" aria-hidden="true"></span></button>
+          <button type="button" class="theme-opt" data-theme-choice="system" role="radio"><span class="theme-prev" aria-hidden="true"><span class="pv pv-light pv-half"><i></i><i></i><b></b></span><span class="pv pv-dark pv-half"><i></i><i></i><b></b></span></span><span class="theme-name"><span class="setting-icon-sm" data-icon="contrast"></span>System</span><span class="theme-radio" aria-hidden="true"></span></button>
+        </div>
+      </div>
+
+      <div class="card card-list">
+        <div class="setting-row">
+          <span>Tables under charts <span class="muted-text">(a Show table link on every chart)</span></span>
+          <button type="button" class="switch" id="showChartTablesSwitch" role="switch" aria-checked="false" aria-label="Tables under charts"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+      </div>
+
+      <div class="section-head"><h2>Profile</h2></div>
+      <div class="card card-list" id="profileList">
+        <button type="button" class="profile-row" data-profile-row="height" aria-expanded="false"><span class="setting-icon" data-icon="ruler"></span><span class="grow">Height</span><span class="profile-val" id="profileHeightVal">Not set</span><span class="profile-chev" aria-hidden="true">›</span></button>
+        <div class="profile-edit" id="profilePanelHeight" hidden>
+          <div class="field" id="profileHeightFieldCm">
+            <span class="field-label">Height (cm)</span>
+            <input type="number" step="any" min="50" max="272" id="profileHeightCm" aria-label="Height in centimetres" placeholder="Not set" />
+          </div>
+          <div class="field" id="profileHeightFieldFtIn">
+            <span class="field-label">Height (ft/in)</span>
+            <div class="inline-time-fields">
+              <input type="number" step="1" min="0" max="8" inputmode="numeric" id="profileHeightFt" aria-label="Height, feet" placeholder="ft" />
+              <input type="number" step="1" min="0" max="11" inputmode="numeric" id="profileHeightIn" aria-label="Height, inches" placeholder="in" />
+            </div>
+          </div>
+        </div>
+        <button type="button" class="profile-row" data-profile-row="age" aria-expanded="false"><span class="setting-icon" data-icon="calendar"></span><span class="grow">Age</span><span class="profile-val" id="profileAgeVal">Not set</span><span class="profile-chev" aria-hidden="true">›</span></button>
+        <div class="profile-edit" id="profilePanelAge" hidden>
+          <div class="field" id="profileAgeField">
+            <span class="field-label">Age <span class="muted-text">(optional — for nutrition advice)</span></span>
+            <input type="number" step="1" min="1" max="120" inputmode="numeric" id="profileAge" aria-label="Age in years" placeholder="Not set" />
+          </div>
+        </div>
+        <button type="button" class="profile-row" data-profile-row="sex" aria-expanded="false"><span class="setting-icon" data-icon="person"></span><span class="grow">Sex</span><span class="profile-val" id="profileSexVal">Not set</span><span class="profile-chev" aria-hidden="true">›</span></button>
+        <div class="profile-edit" id="profilePanelSex" hidden>
+          <div class="segmented segmented-fill" id="profileSexSegmented" role="radiogroup" aria-label="Sex">
+            <button type="button" data-sex-choice="" role="radio">Not set</button>
+            <button type="button" data-sex-choice="male" role="radio">Male</button>
+            <button type="button" data-sex-choice="female" role="radio">Female</button>
+          </div>
+        </div>
+        <div class="profile-edit profile-save" id="profileSaveRow" hidden><button class="btn btn-secondary btn-sm" id="saveProfileBtn">Save profile</button></div>
+      </div>
+      <p class="muted-text profile-note">Used only by the optional insight calculators (BMI, strength and running level, nutrition). Never required.</p>
+
+      <div class="section-head"><h2>Units</h2></div>
+      <div class="card card-list">
+        <div class="setting-row">
+          <span class="setting-row-label"><span class="setting-icon" data-icon="scale"></span><span>Weight</span></span>
+          <div class="segmented" id="weightUnitSegmented" role="radiogroup" aria-label="Weight unit">
+            <button type="button" data-unit-choice="lb" role="radio">lb</button>
+            <button type="button" data-unit-choice="kg" role="radio">kg</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-row-label"><span class="setting-icon" data-icon="footprints"></span><span>Distance</span></span>
+          <div class="segmented" id="distanceUnitSegmented" role="radiogroup" aria-label="Distance unit">
+            <button type="button" data-unit-choice="mi" role="radio">mi</button>
+            <button type="button" data-unit-choice="km" role="radio">km</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-row-label"><span class="setting-icon" data-icon="ruler"></span><span>Length</span></span>
+          <div class="segmented" id="lengthUnitSegmented" role="radiogroup" aria-label="Length unit">
+            <button type="button" data-unit-choice="in" role="radio">in</button>
+            <button type="button" data-unit-choice="cm" role="radio">cm</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-row-label"><span class="setting-icon" data-icon="water"></span><span>Volume</span></span>
+          <div class="segmented" id="volumeUnitSegmented" role="radiogroup" aria-label="Volume unit">
+            <button type="button" data-unit-choice="flOz" role="radio">fl oz</button>
+            <button type="button" data-unit-choice="mL" role="radio">mL</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-head"><h2>What you track</h2></div>
+      <div class="card card-list" id="trackList">
+        <div class="setting-row">
+          <span class="setting-row-label"><span class="setting-icon" data-icon="workout"></span><span>Lifting</span></span>
+          <button type="button" class="switch" id="trackWorkoutSwitch" role="switch" aria-checked="false" aria-label="Track lifting"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row is-sub" data-sub-of="trackWorkout">
+          <span>Workout today <span class="muted-text">(a block on Home)</span></span>
+          <button type="button" class="switch" id="homeTrainingSwitch" role="switch" aria-checked="false" aria-label="Workout today"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row is-sub" data-sub-of="trackWorkout">
+          <span>Sets per muscle <span class="muted-text">(a card on Progress)</span></span>
+          <button type="button" class="switch" id="showMuscleSetsSwitch" role="switch" aria-checked="false" aria-label="Sets per muscle"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row is-sub" data-sub-of="trackWorkout">
+          <span>Recovery <span class="muted-text">(a card on Progress)</span></span>
+          <button type="button" class="switch" id="showRecoverySwitch" role="switch" aria-checked="false" aria-label="Recovery"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row is-sub" data-sub-of="trackWorkout">
+          <span>Next session tips <span class="muted-text">(what to try next time)</span></span>
+          <button type="button" class="switch" id="showSuggestionsSwitch" role="switch" aria-checked="false" aria-label="Next session tips"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row is-sub" data-sub-of="trackWorkout">
+          <span>Strength level <span class="muted-text">(against other lifters)</span></span>
+          <button type="button" class="switch" id="showStrengthLevelSwitch" role="switch" aria-checked="false" aria-label="Strength level"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row is-sub" data-sub-of="trackWorkout">
+          <span>RPE <span class="muted-text">(how hard each set felt, 1 to 10)</span></span>
+          <button type="button" class="switch" id="showRpeSwitch" role="switch" aria-checked="false" aria-label="RPE"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row">
+          <span class="setting-row-label"><span class="setting-icon" data-icon="footprints"></span><span>Running and cardio</span></span>
+          <button type="button" class="switch" id="trackCardioSwitch" role="switch" aria-checked="false" aria-label="Track running and cardio"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row is-sub" data-sub-of="trackCardio">
+          <span>Running level <span class="muted-text">(against 5K times)</span></span>
+          <button type="button" class="switch" id="showPaceLevelSwitch" role="switch" aria-checked="false" aria-label="Running level"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row">
+          <span class="setting-row-label"><span class="setting-icon" data-icon="daily"></span><span>Daily</span></span>
+          <button type="button" class="switch" id="trackHabitsSwitch" role="switch" aria-checked="false" aria-label="Track Daily"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row is-sub" data-sub-of="trackHabits">
+          <span>Daily today <span class="muted-text">(a block on Home)</span></span>
+          <button type="button" class="switch" id="homeChecklistSwitch" role="switch" aria-checked="false" aria-label="Daily today"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row is-sub" data-sub-of="trackHabits">
+          <span>One workout goal <span class="muted-text">(a lift or a run, or one Daily item at its full target)</span></span>
+          <button type="button" class="switch" id="dailyWorkoutGoalSwitch" role="switch" aria-checked="false" aria-label="One workout goal"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row">
+          <span class="setting-row-label"><span class="setting-icon" data-icon="measurements"></span><span>Body</span></span>
+          <button type="button" class="switch" id="trackMeasurementsSwitch" role="switch" aria-checked="false" aria-label="Track Body"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row is-sub" data-sub-of="trackMeasurements">
+          <span>Weight trend and BMI</span>
+          <button type="button" class="switch" id="showWeightInsightsSwitch" role="switch" aria-checked="false" aria-label="Weight trend and BMI"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row is-sub" data-sub-of="trackMeasurements" data-needs="sleep">
+          <span>Sleep insights <span class="muted-text">(last 7 nights)</span></span>
+          <button type="button" class="switch" id="showSleepInsightsSwitch" role="switch" aria-checked="false" aria-label="Sleep insights"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row">
+          <span class="setting-row-label"><span class="setting-icon" data-icon="water"></span><span>Water</span></span>
+          <button type="button" class="switch" id="trackWaterSwitch" role="switch" aria-checked="false" aria-label="Track water"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row">
+          <span class="setting-row-label"><span class="setting-icon" data-icon="food"></span><span>Food</span></span>
+          <button type="button" class="switch" id="trackFoodSwitch" role="switch" aria-checked="false" aria-label="Track food"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row is-sub" data-sub-of="trackFood">
+          <span>Food today <span class="muted-text">(a block on Home)</span></span>
+          <button type="button" class="switch" id="homeNutritionSwitch" role="switch" aria-checked="false" aria-label="Food today"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row is-sub" data-sub-of="trackFood">
+          <span>Macro guidance <span class="muted-text">(% of Daily Values)</span></span>
+          <button type="button" class="switch" id="showMacroGuidanceSwitch" role="switch" aria-checked="false" aria-label="Macro guidance"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <p class="muted-text field-hint">An area that is off is hidden everywhere. Nothing already logged is lost. Levels use the sex and age in Profile.</p>
+      </div>
+
+      <div class="section-head"><h2>Home screen</h2></div>
+      <div class="card card-list">
+        <div class="setting-row" id="homeMiniRow">
+          <span class="setting-row-label"><span class="setting-icon" data-icon="water"></span><span>Water and trackers <span class="muted-text">(quick log tiles)</span></span></span>
+          <button type="button" class="switch" id="homeMiniSwitch" role="switch" aria-checked="true" aria-label="Water and trackers"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <div class="setting-row">
+          <span class="setting-row-label"><span class="setting-icon" data-icon="trophy"></span><span>Goals <span class="muted-text">(closest three)</span></span></span>
+          <button type="button" class="switch" id="homeGoalsSwitch" role="switch" aria-checked="true" aria-label="Goals"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+        </div>
+        <p class="muted-text field-hint">Hiding a block only changes what Home shows. Nothing is deleted.</p>
+      </div>
+
+      <div class="section-head"><h2>Backup</h2></div>
+      <div class="card">
+        <p class="muted-text">Your data lives only on this device. Export a backup file regularly, especially before clearing browser data or switching phones.</p>
+        <div class="btn-row">
+          <button class="btn btn-secondary btn-icon-label" id="exportBtn"><span data-icon="download"></span>Export backup (.json)</button>
+          <button class="btn btn-secondary btn-icon-label" id="importBtn"><span data-icon="upload"></span>Import backup</button>
+        </div>
+        <input type="file" id="importFile" accept=".json,application/json" hidden />
+      </div>
+
+      <div class="section-head"><h2>Erase data</h2></div>
+      <div class="card danger-zone">
+        <div class="danger-title"><span data-icon="triangle-alert"></span><span>This can&rsquo;t be reversed</span></div>
+        <p class="muted-text">Deletes everything Fit Log has saved on this device: exercises, entries, measurements, water, food, habits, your profile and your settings. The app then restarts from the setup guide. Export a backup first if you might want any of it back.</p>
+        <button type="button" class="btn btn-danger-solid btn-block btn-icon-label" id="eraseAllBtn"><span data-icon="trash"></span>Erase all data</button>
+      </div>
+
+      <div class="section-head"><h2>About</h2></div>
+      <div class="card">
+        <p class="muted-text">Installed as a home-screen app. All data stays on this device.</p>
+        <button type="button" class="setting-row row-switch" id="aboutNumbersBtn"><span class="row-lead"><b class="link-text">About the numbers</b><span class="muted-text">Every formula and reference behind your streak, sleep, strength, BMI and nutrition numbers</span></span></button>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab" data-tab="dashboard" aria-current="page">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      <span>Home</span>
+    </button>
+    <button class="tab" data-tab="progress">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></svg>
+      <span>Progress</span>
+    </button>
+    <button class="tab tab-log" data-tab="log" aria-label="Log">
+      <span class="tab-log-badge"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></span>
+      <span>Log</span>
+    </button>
+    <button class="tab" data-tab="history">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+      <span>History</span>
+    </button>
+    <button class="tab" data-tab="manage">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>
+      <span>Manage</span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- Modal overlay (exercise detail, add/edit exercise, tracker/cup forms, confirm) -->
+<div id="modalRoot" class="modal-root" hidden>
+  <div class="modal-backdrop" id="modalBackdrop"></div>
+  <div class="modal-sheet" id="modalSheet" role="dialog" aria-modal="true"></div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="js/charts.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/units.js"></script>
+<script src="js/calc.js"></script>
+<script src="js/features.js"></script>
+<script src="js/strength-data.js"></script>
+<script src="js/standards.js"></script>
+<script src="js/backup.js"></script>
+<script src="js/migrations.js"></script>
+<script src="js/catalog.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
